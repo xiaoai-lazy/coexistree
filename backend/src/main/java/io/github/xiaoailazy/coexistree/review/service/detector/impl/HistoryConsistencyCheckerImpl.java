@@ -1,0 +1,197 @@
+package io.github.xiaoailazy.coexistree.review.service.detector.impl;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.xiaoailazy.coexistree.review.enums.EvaluationCategory;
+import io.github.xiaoailazy.coexistree.review.enums.RiskLevel;
+import io.github.xiaoailazy.coexistree.review.model.EvaluationReport;
+import io.github.xiaoailazy.coexistree.review.service.detector.DetectionResult;
+import io.github.xiaoailazy.coexistree.review.service.detector.HistoryConsistencyChecker;
+import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
+import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * 历史背景/现状一致性检查器实现
+ */
+@Slf4j
+@Component
+public class HistoryConsistencyCheckerImpl implements HistoryConsistencyChecker {
+
+    private final LlmClient llmClient;
+    private final ObjectMapper objectMapper;
+
+    public HistoryConsistencyCheckerImpl(LlmClient llmClient, ObjectMapper objectMapper) {
+        this.llmClient = llmClient;
+        this.objectMapper = objectMapper;
+    }
+
+    @Override
+    public DetectionResult check(String requirementContent, SystemKnowledgeTree systemTree, String previousResponseId) {
+        String prompt = buildPrompt(requirementContent, systemTree);
+
+        try {
+            LlmClient.LlmResponse response = llmClient.chat(prompt, null, 0.3, previousResponseId);
+            EvaluationReport report = parseResult(response.content());
+            return DetectionResult.of(report, response.responseId());
+        } catch (Exception e) {
+            log.error("历史背景一致性检查失败", e);
+            return DetectionResult.of(createErrorReport(), null);
+        }
+    }
+
+    private String buildPrompt(String requirementContent, SystemKnowledgeTree systemTree) {
+        String currentState = extractCurrentState(systemTree);
+
+        return """
+                作为系统历史分析专家，请验证需求描述的历史背景和系统现状是否准确。
+
+                ## 需求文档
+                ```
+                %s
+                ```
+
+                ## 当前系统树状态
+                ```
+                %s
+                ```
+
+                ## 检测任务
+                请识别需求描述中的历史背景和现状描述是否与系统实际情况一致：
+                1. **现状描述错误** - 需求假设的系统状态与实际不符
+                2. **历史背景错误** - 需求引用的历史信息不准确
+                3. **版本/接口错误** - 需求提到的版本、接口已过时
+                4. **流程假设错误** - 需求对现有流程的理解有误
+
+                ## 输出格式（JSON）
+                {
+                  "riskLevel": "HIGH|MEDIUM|LOW|NONE",
+                  "summary": "总体评估结论",
+                  "items": [
+                    {
+                      "name": "问题描述",
+                      "description": "需求描述 vs 实际情况",
+                      "severity": "high|medium|low",
+                      "suggestion": "修正建议"
+                    }
+                  ]
+                }
+
+                风险等级定义：
+                - HIGH: 存在严重的现状理解错误，可能导致方案不可行
+                - MEDIUM: 存在部分描述不准确，建议核实
+                - LOW: 描述有轻微偏差或不够精确
+                - NONE: 描述准确，与系统现状一致
+
+                请只输出 JSON，不要其他内容。
+                """.formatted(requirementContent, currentState);
+    }
+
+    private String extractCurrentState(SystemKnowledgeTree tree) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("系统当前状态（从知识树提取）：\n");
+        if (tree != null && tree.getStructure() != null) {
+            for (var rootNode : tree.getStructure()) {
+                appendNode(sb, rootNode, 0);
+            }
+        }
+        return sb.toString();
+    }
+
+    private void appendNode(StringBuilder sb, io.github.xiaoailazy.coexistree.indexer.model.TreeNode node, int depth) {
+        if (node == null) return;
+
+        String indent = "  ".repeat(depth);
+        sb.append(indent).append("- ").append(node.getTitle());
+        if (node.getSummary() != null && !node.getSummary().isBlank()) {
+            String preview = node.getSummary().replace("\n", " ");
+            if (preview.length() > 150) {
+                preview = preview.substring(0, 150) + "...";
+            }
+            sb.append(" [").append(preview).append("]");
+        }
+        sb.append("\n");
+
+        if (node.getNodes() != null) {
+            for (var child : node.getNodes()) {
+                appendNode(sb, child, depth + 1);
+            }
+        }
+    }
+
+    private EvaluationReport parseResult(String content) {
+        try {
+            String json = extractJson(content);
+            JsonNode node = objectMapper.readTree(json);
+
+            RiskLevel riskLevel = RiskLevel.valueOf(node.get("riskLevel").asText());
+            String summary = node.has("summary") ? node.get("summary").asText() : "";
+
+            List<EvaluationReport.EvaluationItem> items = new ArrayList<>();
+            if (node.has("items") && node.get("items").isArray()) {
+                for (JsonNode item : node.get("items")) {
+                    items.add(new EvaluationReport.EvaluationItem(
+                            item.get("name").asText(),
+                            item.get("description").asText(),
+                            item.has("severity") ? item.get("severity").asText() : "medium",
+                            item.has("suggestion") ? item.get("suggestion").asText() : null
+                    ));
+                }
+            }
+
+            return new EvaluationReport(
+                    EvaluationCategory.HISTORY,
+                    riskLevel,
+                    "历史背景/现状一致性",
+                    null,
+                    summary,
+                    items,
+                    null
+            );
+
+        } catch (Exception e) {
+            log.error("解析历史一致性结果失败: {}", content, e);
+            return createErrorReport();
+        }
+    }
+
+    private String extractJson(String content) {
+        String trimmed = content.trim();
+
+        if (trimmed.startsWith("{")) {
+            return trimmed;
+        }
+
+        int start = trimmed.indexOf("```json");
+        if (start != -1) {
+            int end = trimmed.indexOf("```", start + 7);
+            if (end != -1) {
+                return trimmed.substring(start + 7, end).trim();
+            }
+        }
+
+        start = trimmed.indexOf("{");
+        int end = trimmed.lastIndexOf("}");
+        if (start != -1 && end != -1 && end > start) {
+            return trimmed.substring(start, end + 1);
+        }
+
+        return trimmed;
+    }
+
+    private EvaluationReport createErrorReport() {
+        return new EvaluationReport(
+                EvaluationCategory.HISTORY,
+                RiskLevel.NONE,
+                "历史背景/现状一致性",
+                null,
+                "检查过程出现异常，请稍后重试",
+                List.of(),
+                null
+        );
+    }
+}

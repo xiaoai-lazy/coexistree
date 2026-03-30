@@ -1,0 +1,29 @@
+# CoExistree Docker Compose 配置
+# 使用 H2 文件数据库，简单轻量，无需额外服务
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coexistree
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVER_PORT=8080
+      - SPRING_PROFILES_ACTIVE=prod
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-doubao-seed-2-0-pro-260215}
+      - STORAGE_PATH=/app/data
+      - JAVA_OPTS=-Xms512m -Xmx2g -XX:+UseG1GC
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    networks:
+      - coexistree-network
+
+networks:
+  coexistree-network:
+    driver: bridge

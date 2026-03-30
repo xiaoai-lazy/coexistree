@@ -1,0 +1,40 @@
+# Test profile configuration
+# Uses in-memory H2 database for integration tests
+
+server:
+  port: 0  # Random port for parallel test execution
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+    show-sql: true
+  flyway:
+    enabled: false  # Disable Flyway for tests to use ddl-auto
+
+logging:
+  level:
+    root: WARN
+    io.github.xiaoailazy.coexistree: INFO
+    org.springframework.test: INFO
+    org.hibernate.SQL: DEBUG
+
+app:
+  storage:
+    doc-root: ./target/test-data/docs
+    tree-root: ./target/test-data/trees
+    system-tree-root: ./target/test-data/system-trees
+  llm:
+    api-key: test-api-key
+    default-model: test-model
+    base-url: http://localhost:9999/api

@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: coexistree
+  profiles:
+    active: dev
+  threads:
+    virtual:
+      enabled: true  # 启用 Java 21 虚拟线程支持
+

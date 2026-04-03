@@ -6,8 +6,11 @@ import io.github.xiaoailazy.coexistree.system.dto.UpdateSystemRequest;
 import io.github.xiaoailazy.coexistree.system.service.SystemService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -15,7 +18,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
@@ -23,7 +25,9 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(SystemController.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
 class SystemControllerTest {
 
     @Autowired
@@ -33,12 +37,13 @@ class SystemControllerTest {
     private SystemService systemService;
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testListSystems() throws Exception {
         // Given
         SystemResponse sys1 = createSystemResponse(1L, "ops", "运维系统");
         SystemResponse sys2 = createSystemResponse(2L, "crm", "客户管理系统");
 
-        when(systemService.list()).thenReturn(List.of(sys1, sys2));
+        when(systemService.list(any())).thenReturn(List.of(sys1, sys2));
 
         // When & Then
         mockMvc.perform(get("/api/v1/systems"))
@@ -50,12 +55,13 @@ class SystemControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testCreateSystem() throws Exception {
         // Given
         CreateSystemRequest request = new CreateSystemRequest("newsys", "新系统", "系统描述");
         SystemResponse response = createSystemResponse(1L, "newsys", "新系统");
 
-        when(systemService.create(any(CreateSystemRequest.class))).thenReturn(response);
+        when(systemService.create(any(CreateSystemRequest.class), any())).thenReturn(response);
 
         // When & Then
         mockMvc.perform(post("/api/v1/systems")
@@ -74,6 +80,7 @@ class SystemControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testCreateSystemValidationFailure() throws Exception {
         // When & Then - systemCode is blank
         mockMvc.perform(post("/api/v1/systems")
@@ -88,6 +95,7 @@ class SystemControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testGetSystemById() throws Exception {
         // Given
         Long systemId = 1L;
@@ -105,6 +113,7 @@ class SystemControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testUpdateSystem() throws Exception {
         // Given
         Long systemId = 1L;
@@ -127,6 +136,7 @@ class SystemControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testDeleteSystem() throws Exception {
         // Given
         Long systemId = 1L;
@@ -140,9 +150,10 @@ class SystemControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testListEmptySystems() throws Exception {
         // Given
-        when(systemService.list()).thenReturn(List.of());
+        when(systemService.list(any())).thenReturn(List.of());
 
         // When & Then
         mockMvc.perform(get("/api/v1/systems"))
@@ -152,10 +163,11 @@ class SystemControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testCreateSystemWithSpecialCharacters() throws Exception {
         // Given
         SystemResponse response = createSystemResponse(1L, "sys-001", "系统【测试】");
-        when(systemService.create(any(CreateSystemRequest.class))).thenReturn(response);
+        when(systemService.create(any(CreateSystemRequest.class), any())).thenReturn(response);
 
         // When & Then
         mockMvc.perform(post("/api/v1/systems")

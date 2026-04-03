@@ -1,30 +1,39 @@
 package io.github.xiaoailazy.coexistree.system.repository;
 
-import io.github.xiaoailazy.coexistree.shared.integration.AbstractRepositoryTest;
-import io.github.xiaoailazy.coexistree.shared.integration.TestDataFactory;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Transactional
-class SystemRepositoryIntegrationTest extends AbstractRepositoryTest {
+@DataJpaTest
+@ActiveProfiles("test")
+class SystemRepositoryIntegrationTest {
 
     @Autowired
     private SystemRepository systemRepository;
 
+    private SystemEntity createSystem(String code, String name) {
+        SystemEntity system = new SystemEntity();
+        system.setSystemCode(code);
+        system.setSystemName(name);
+        system.setDescription("Test description");
+        system.setStatus("ACTIVE");
+        system.setCreatedAt(LocalDateTime.now());
+        system.setUpdatedAt(LocalDateTime.now());
+        return system;
+    }
+
     @Test
     void shouldSaveAndFindSystemById() {
         // Given
-        SystemEntity system = TestDataFactory.aSystem()
-                .withSystemCode("OPS")
-                .withSystemName("Operations System")
-                .build();
+        SystemEntity system = createSystem("OPS", "Operations System");
 
         // When
         SystemEntity saved = systemRepository.save(system);
@@ -39,10 +48,7 @@ class SystemRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldFindBySystemCode() {
         // Given
-        SystemEntity system = TestDataFactory.aSystem()
-                .withSystemCode("CRM")
-                .withSystemName("CRM System")
-                .build();
+        SystemEntity system = createSystem("CRM", "CRM System");
         systemRepository.save(system);
 
         // When
@@ -65,9 +71,7 @@ class SystemRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldCheckIfSystemCodeExists() {
         // Given
-        SystemEntity system = TestDataFactory.aSystem()
-                .withSystemCode("ERP")
-                .build();
+        SystemEntity system = createSystem("ERP", "ERP System");
         systemRepository.save(system);
 
         // When & Then
@@ -78,9 +82,9 @@ class SystemRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldFindAllSystems() {
         // Given
-        systemRepository.save(TestDataFactory.aSystem().withSystemCode("SYS1").withSystemName("System 1").build());
-        systemRepository.save(TestDataFactory.aSystem().withSystemCode("SYS2").withSystemName("System 2").build());
-        systemRepository.save(TestDataFactory.aSystem().withSystemCode("SYS3").withSystemName("System 3").build());
+        systemRepository.save(createSystem("SYS1", "System 1"));
+        systemRepository.save(createSystem("SYS2", "System 2"));
+        systemRepository.save(createSystem("SYS3", "System 3"));
 
         // When
         List<SystemEntity> all = systemRepository.findAll();
@@ -92,10 +96,7 @@ class SystemRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldUpdateSystem() {
         // Given
-        SystemEntity system = TestDataFactory.aSystem()
-                .withSystemCode("UPDATE")
-                .withSystemName("Original Name")
-                .build();
+        SystemEntity system = createSystem("UPDATE", "Original Name");
         SystemEntity saved = systemRepository.save(system);
 
         // When
@@ -111,9 +112,7 @@ class SystemRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldDeleteSystem() {
         // Given
-        SystemEntity system = TestDataFactory.aSystem()
-                .withSystemCode("DELETE")
-                .build();
+        SystemEntity system = createSystem("DELETE", "To Delete");
         SystemEntity saved = systemRepository.save(system);
 
         // When

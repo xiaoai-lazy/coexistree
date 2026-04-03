@@ -3,6 +3,7 @@ package io.github.xiaoailazy.coexistree.chat.service;
 import io.github.xiaoailazy.coexistree.chat.dto.ChatRequest;
 import io.github.xiaoailazy.coexistree.chat.dto.ConversationResponse;
 import io.github.xiaoailazy.coexistree.chat.dto.MessageResponse;
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
@@ -25,8 +26,9 @@ public interface ConversationService {
      * @param conversationId 会话ID
      * @param request        对话请求（包含问题和可选的文档ID）
      * @param emitter        SSE发射器
+     * @param userDetails    当前用户详情
      */
-    void smartChatStream(String conversationId, ChatRequest request, SseEmitter emitter);
+    void smartChatStream(String conversationId, ChatRequest request, SseEmitter emitter, SecurityUserDetails userDetails);
 
     String generateTitle(String conversationId);
 

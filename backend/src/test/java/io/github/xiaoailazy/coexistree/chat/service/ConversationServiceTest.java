@@ -16,10 +16,11 @@ import io.github.xiaoailazy.coexistree.document.service.DocumentTreeService;
 import io.github.xiaoailazy.coexistree.document.storage.MarkdownFileStorageService;
 import io.github.xiaoailazy.coexistree.review.service.IntentClassifier;
 import io.github.xiaoailazy.coexistree.review.service.RequirementEvaluationService;
+import io.github.xiaoailazy.coexistree.system.repository.SystemUserMappingRepository;
 import io.github.xiaoailazy.coexistree.knowledge.service.SystemKnowledgeTreeService;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
-import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient.LlmResponse;
 import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
+import io.github.xiaoailazy.coexistree.shared.test.LlmMockFactory;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeSearchResult;
 import io.github.xiaoailazy.coexistree.indexer.tree.TreeNodeMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,6 +70,8 @@ class ConversationServiceTest {
     @Mock
     private MarkdownFileStorageService markdownFileStorageService;
     @Mock
+    private SystemUserMappingRepository systemUserMappingRepository;
+    @Mock
     private AnswerGenerationService answerGenerationService;
     @Mock
     private PromptTemplateService promptTemplateService;
@@ -97,7 +100,8 @@ class ConversationServiceTest {
                 intentClassifier,
                 requirementEvaluationService,
                 documentRepository,
-                markdownFileStorageService
+                markdownFileStorageService,
+                systemUserMappingRepository
         );
     }
 
@@ -284,8 +288,7 @@ class ConversationServiceTest {
                 .thenReturn(List.of(msg1, msg2));
         when(promptTemplateService.buildTitleGenerationPrompt(anyList()))
                 .thenReturn("prompt");
-        when(llmClient.chat(anyString(), eq(null), eq(0.0)))
-                .thenReturn(new LlmResponse(null, "部署问题"));
+        LlmMockFactory.mockForTitleGeneration(llmClient, "部署问题");
 
         String title = conversationService.generateTitle(conversationId);
 
@@ -307,8 +310,7 @@ class ConversationServiceTest {
                 .thenReturn(List.of(msg));
         when(promptTemplateService.buildTitleGenerationPrompt(anyList()))
                 .thenReturn("prompt");
-        when(llmClient.chat(anyString(), eq(null), eq(0.0)))
-                .thenReturn(new LlmResponse(null, "这是一个非常非常长的标题超过了十个字"));
+        LlmMockFactory.mockForTitleGeneration(llmClient, "这是一个非常非常长的标题超过了十个字");
 
         String title = conversationService.generateTitle(conversationId);
 
@@ -365,8 +367,7 @@ class ConversationServiceTest {
                 .thenReturn(List.of(msg));
         when(promptTemplateService.buildTitleGenerationPrompt(anyList()))
                 .thenReturn("prompt");
-        when(llmClient.chat(anyString(), eq(null), eq(0.0)))
-                .thenThrow(new RuntimeException("LLM error"));
+        LlmMockFactory.mockChatException(llmClient, new RuntimeException("LLM error"));
 
         String title = conversationService.generateTitle(conversationId);
 
@@ -397,8 +398,7 @@ class ConversationServiceTest {
                     assertThat(msgs).hasSize(5);
                     return "prompt";
                 });
-        when(llmClient.chat(anyString(), eq(null), eq(0.0)))
-                .thenReturn(new LlmResponse(null, "标题"));
+        LlmMockFactory.mockForTitleGeneration(llmClient, "标题");
 
         conversationService.generateTitle(conversationId);
     }

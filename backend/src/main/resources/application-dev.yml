@@ -41,3 +41,13 @@ app:
     api-key: ${LLM_API_KEY}
     default-model: ${LLM_MODEL}
     base-url: ${LLM_BASE_URL}
+
+jwt:
+  secret: ${JWT_SECRET:dev-secret-key-must-be-at-least-32-characters-long}
+  expiration: 86400000
+  issuer: CoExistree
+
+admin:
+  username: admin
+  password: ${ADMIN_INITIAL_PASSWORD:admin123}
+  display-name: 系统管理员

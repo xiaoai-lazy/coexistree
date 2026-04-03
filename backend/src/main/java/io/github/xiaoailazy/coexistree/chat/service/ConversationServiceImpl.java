@@ -34,6 +34,9 @@ import io.github.xiaoailazy.coexistree.indexer.model.NodeSource;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeSearchResult;
 import io.github.xiaoailazy.coexistree.indexer.tree.TreeNodeMapper;
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
+import io.github.xiaoailazy.coexistree.system.entity.SystemUserMappingEntity;
+import io.github.xiaoailazy.coexistree.system.repository.SystemUserMappingRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -74,6 +77,7 @@ public class ConversationServiceImpl implements ConversationService {
     private final RequirementEvaluationService requirementEvaluationService;
     private final DocumentRepository documentRepository;
     private final MarkdownFileStorageService markdownFileStorageService;
+    private final SystemUserMappingRepository systemUserMappingRepository;
 
     public ConversationServiceImpl(
             ConversationRepository conversationRepository,
@@ -89,7 +93,8 @@ public class ConversationServiceImpl implements ConversationService {
             IntentClassifier intentClassifier,
             RequirementEvaluationService requirementEvaluationService,
             DocumentRepository documentRepository,
-            MarkdownFileStorageService markdownFileStorageService
+            MarkdownFileStorageService markdownFileStorageService,
+            SystemUserMappingRepository systemUserMappingRepository
     ) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
@@ -105,6 +110,7 @@ public class ConversationServiceImpl implements ConversationService {
         this.requirementEvaluationService = requirementEvaluationService;
         this.documentRepository = documentRepository;
         this.markdownFileStorageService = markdownFileStorageService;
+        this.systemUserMappingRepository = systemUserMappingRepository;
     }
 
     @Override
@@ -307,7 +313,7 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
-    public void smartChatStream(String conversationId, ChatRequest request, SseEmitter emitter) {
+    public void smartChatStream(String conversationId, ChatRequest request, SseEmitter emitter, SecurityUserDetails userDetails) {
         String question = request.question();
         Long documentId = request.documentId();
 
@@ -319,6 +325,10 @@ public class ConversationServiceImpl implements ConversationService {
         }
 
         ConversationEntity conversation = findConversation(conversationId);
+
+        // Check system access permission
+        checkSystemAccess(conversation.getSystemId(), userDetails);
+
         boolean hasDocument = documentId != null;
 
         // 保存用户消息（如果有文档，记录文档ID）
@@ -363,7 +373,7 @@ public class ConversationServiceImpl implements ConversationService {
                 executeRequirementEvaluation(conversation, question, documentId, emitter);
             } else {
                 // 普通问答流程 - 内联实现
-                executeQuestionAnswer(conversation, question, emitter);
+                executeQuestionAnswer(conversation, question, emitter, userDetails);
             }
 
         } catch (Exception e) {
@@ -378,8 +388,9 @@ public class ConversationServiceImpl implements ConversationService {
     /**
      * 执行普通问答流程
      */
-    private void executeQuestionAnswer(ConversationEntity conversation, String question, SseEmitter emitter) {
+    private void executeQuestionAnswer(ConversationEntity conversation, String question, SseEmitter emitter, SecurityUserDetails userDetails) {
         String conversationId = conversation.getConversationId();
+        Integer viewLevel = getViewLevel(conversation.getSystemId(), userDetails);
 
         try {
             sendEvent(emitter, SseEvent.stage("init", "running"));
@@ -403,7 +414,16 @@ public class ConversationServiceImpl implements ConversationService {
             for (String nodeId : result.getNodeList()) {
                 TreeNode node = nodeMap.get(nodeId);
                 if (node != null) {
-                    relevantNodes.add(node);
+                    // Filter sources by user's view level
+                    if (node.getSources() != null) {
+                        List<NodeSource> filteredSources = node.getSources().stream()
+                                .filter(source -> source.getSecurityLevel() == null || source.getSecurityLevel() <= viewLevel)
+                                .toList();
+                        node.setSources(filteredSources);
+                    }
+                    if (node.getSources() == null || !node.getSources().isEmpty()) {
+                        relevantNodes.add(node);
+                    }
                 }
             }
 
@@ -629,5 +649,30 @@ public class ConversationServiceImpl implements ConversationService {
         }
         msg.setCreatedAt(LocalDateTime.now());
         messageRepository.save(msg);
+    }
+
+    /**
+     * 检查用户是否有权限访问系统
+     */
+    private void checkSystemAccess(Long systemId, SecurityUserDetails userDetails) {
+        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
+            return;
+        }
+
+        systemUserMappingRepository.findBySystemIdAndUserId(systemId, userDetails.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PERMISSION_DENIED, "无权限访问此系统"));
+    }
+
+    /**
+     * 获取用户在系统中的查看等级
+     */
+    private Integer getViewLevel(Long systemId, SecurityUserDetails userDetails) {
+        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
+            return 5;
+        }
+
+        return systemUserMappingRepository.findBySystemIdAndUserId(systemId, userDetails.getId())
+                .map(SystemUserMappingEntity::getViewLevel)
+                .orElse(0);
     }
 }

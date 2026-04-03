@@ -62,12 +62,14 @@ public class SystemTreeSnapshotEntity {
     /**
      * 是否固定（不自动删除）
      */
+    @Builder.Default
     @Column(name = "is_pinned")
     private Boolean isPinned = false;
 
     /**
      * 状态: ACTIVE, DELETED
      */
+    @Builder.Default
     @Column(name = "status", length = 20)
     private String status = "ACTIVE";
 

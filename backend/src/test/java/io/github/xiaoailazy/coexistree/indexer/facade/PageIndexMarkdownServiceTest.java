@@ -9,6 +9,7 @@ import io.github.xiaoailazy.coexistree.indexer.summary.DocumentSummaryService;
 import io.github.xiaoailazy.coexistree.indexer.summary.NodeSummaryService;
 import io.github.xiaoailazy.coexistree.indexer.tree.PageIndexTreeBuilder;
 import io.github.xiaoailazy.coexistree.indexer.tree.TreeNodeCounter;
+import io.github.xiaoailazy.coexistree.shared.test.LlmMockFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -53,8 +54,7 @@ class PageIndexMarkdownServiceTest {
 
     @Test
     void shouldBuildDocumentTreeWithHierarchyAndSummary() throws Exception {
-        Mockito.when(llmClient.chat(Mockito.anyString(), Mockito.eq("test-model"), Mockito.eq(0.0)))
-                .thenReturn(new LlmClient.LlmResponse(null, "Document tree for system-guide"));
+        LlmMockFactory.mockForDocumentSummary(llmClient, "Document tree for system-guide");
 
         Files.createDirectories(testRoot);
         Path markdown = testRoot.resolve("system-guide.md");
@@ -87,6 +87,9 @@ class PageIndexMarkdownServiceTest {
 
     @Test
     void shouldRespectThinningAndOutputOptions() throws Exception {
+        // Mock LLM 调用 - 生成节点摘要
+        LlmMockFactory.mockForNodeSummary(llmClient, "父节点摘要内容");
+
         Files.createDirectories(testRoot);
         Path markdown = testRoot.resolve("thin.md");
         Files.writeString(markdown, """

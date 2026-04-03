@@ -1,11 +1,10 @@
 package io.github.xiaoailazy.coexistree.chat.repository;
 
-import io.github.xiaoailazy.coexistree.shared.integration.AbstractRepositoryTest;
-import io.github.xiaoailazy.coexistree.shared.integration.TestDataFactory;
 import io.github.xiaoailazy.coexistree.chat.entity.ConversationEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -14,21 +13,28 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Transactional
-class ConversationRepositoryIntegrationTest extends AbstractRepositoryTest {
+@DataJpaTest
+@ActiveProfiles("test")
+class ConversationRepositoryIntegrationTest {
 
     @Autowired
     private ConversationRepository conversationRepository;
+
+    private ConversationEntity createConversation(String conversationId, Long systemId, String title) {
+        ConversationEntity conv = new ConversationEntity();
+        conv.setConversationId(conversationId);
+        conv.setSystemId(systemId);
+        conv.setTitle(title);
+        conv.setCreatedAt(LocalDateTime.now());
+        conv.setUpdatedAt(LocalDateTime.now());
+        return conv;
+    }
 
     @Test
     void shouldSaveAndFindConversationById() {
         // Given
         String conversationId = UUID.randomUUID().toString();
-        ConversationEntity conv = TestDataFactory.aConversation()
-                .withConversationId(conversationId)
-                .withSystemId(1L)
-                .withTitle("Test Conversation")
-                .build();
+        ConversationEntity conv = createConversation(conversationId, 1L, "Test Conversation");
 
         // When
         ConversationEntity saved = conversationRepository.save(conv);
@@ -41,11 +47,7 @@ class ConversationRepositoryIntegrationTest extends AbstractRepositoryTest {
     void shouldFindByConversationId() {
         // Given
         String conversationId = UUID.randomUUID().toString();
-        ConversationEntity conv = TestDataFactory.aConversation()
-                .withConversationId(conversationId)
-                .withSystemId(1L)
-                .withTitle("My Conversation")
-                .build();
+        ConversationEntity conv = createConversation(conversationId, 1L, "My Conversation");
         conversationRepository.save(conv);
 
         // When
@@ -70,29 +72,17 @@ class ConversationRepositoryIntegrationTest extends AbstractRepositoryTest {
         // Given
         LocalDateTime now = LocalDateTime.now();
 
-        ConversationEntity conv1 = TestDataFactory.aConversation()
-                .withConversationId(UUID.randomUUID().toString())
-                .withSystemId(1L)
-                .withTitle("Older")
-                .build();
+        ConversationEntity conv1 = createConversation(UUID.randomUUID().toString(), 1L, "Older");
         conv1.setUpdatedAt(now.minusHours(2));
         conv1.setCreatedAt(now.minusHours(2));
         conversationRepository.save(conv1);
 
-        ConversationEntity conv2 = TestDataFactory.aConversation()
-                .withConversationId(UUID.randomUUID().toString())
-                .withSystemId(1L)
-                .withTitle("Newest")
-                .build();
+        ConversationEntity conv2 = createConversation(UUID.randomUUID().toString(), 1L, "Newest");
         conv2.setUpdatedAt(now);
         conv2.setCreatedAt(now);
         conversationRepository.save(conv2);
 
-        ConversationEntity conv3 = TestDataFactory.aConversation()
-                .withConversationId(UUID.randomUUID().toString())
-                .withSystemId(1L)
-                .withTitle("Middle")
-                .build();
+        ConversationEntity conv3 = createConversation(UUID.randomUUID().toString(), 1L, "Middle");
         conv3.setUpdatedAt(now.minusHours(1));
         conv3.setCreatedAt(now.minusHours(1));
         conversationRepository.save(conv3);
@@ -111,10 +101,7 @@ class ConversationRepositoryIntegrationTest extends AbstractRepositoryTest {
     void shouldUpdateConversationTitle() {
         // Given
         String conversationId = UUID.randomUUID().toString();
-        ConversationEntity conv = TestDataFactory.aConversation()
-                .withConversationId(conversationId)
-                .withTitle("Original Title")
-                .build();
+        ConversationEntity conv = createConversation(conversationId, 1L, "Original Title");
         ConversationEntity saved = conversationRepository.save(conv);
 
         // When
@@ -130,9 +117,7 @@ class ConversationRepositoryIntegrationTest extends AbstractRepositoryTest {
     void shouldDeleteConversation() {
         // Given
         String conversationId = UUID.randomUUID().toString();
-        ConversationEntity conv = TestDataFactory.aConversation()
-                .withConversationId(conversationId)
-                .build();
+        ConversationEntity conv = createConversation(conversationId, 1L, "To Delete");
         conversationRepository.save(conv);
 
         // When

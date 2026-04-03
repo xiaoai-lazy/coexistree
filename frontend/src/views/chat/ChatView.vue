@@ -191,11 +191,13 @@ import { ref, nextTick, onMounted } from 'vue'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { listSystems } from '@/api/system'
 import { createConversation, listConversations, deleteConversation, getMessages, generateTitle } from '@/api/conversation'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
+import { confirmDelete } from '@/utils/dialog'
 import { marked } from 'marked'
 import ChatInputArea from './components/ChatInputArea.vue'
 import EvaluationReportCard from './components/EvaluationReportCard.vue'
 import ClarificationOptions from './components/ClarificationOptions.vue'
+import { SSE_EVENT_TYPES, STAGE_LABELS } from '@/constants/sse-events'
 
 const historyOpen = ref(true)
 const systems = ref([])
@@ -208,19 +210,6 @@ const sending = ref(false)
 const contentRef = ref(null)
 const attachedDocument = ref(null)
 let abortController = null
-
-const STAGE_LABELS = {
-  init: '正在初始化...',
-  load_document: '正在加载文档索引...',
-  load_system_tree: '正在加载系统知识树...',
-  search: '正在检索相关内容...',
-  thinking: '正在生成回答...',
-  intent_detection: '正在分析意图...',
-  CONFLICT: '正在检测功能冲突...',
-  CONSISTENCY: '正在检查业务规则...',
-  IMPACT: '正在分析模块依赖...',
-  HISTORY: '正在验证历史背景...',
-}
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -329,7 +318,7 @@ const switchConversation = async (conv) => {
 
 const deleteConv = async (conversationId) => {
   try {
-    await ElMessageBox.confirm('确定删除该会话及其所有消息吗？', '提示', { type: 'warning' })
+    await confirmDelete('该会话及其所有消息')
     await deleteConversation(conversationId)
     conversations.value = conversations.value.filter(c => c.conversationId !== conversationId)
     if (currentConversationId.value === conversationId) {
@@ -381,9 +370,13 @@ const onSubmit = async ({ message, documentId }) => {
   abortController = new AbortController()
 
   try {
+    const token = localStorage.getItem('token')
     await fetchEventSource(`/api/v1/conversations/${currentConversationId.value}/smart-chat`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` })
+      },
       body: JSON.stringify({
         question: text,
         documentId: documentId
@@ -399,39 +392,39 @@ const onSubmit = async ({ message, documentId }) => {
           const msg = getAiMsg()
           if (!msg) return
 
-          // 处理不同类型的 SSE 事件
+          // 处理不同类型的 SSE 事件 - 使用契约定义的常量
           switch (data.type) {
             // 标准阶段事件
-            case 'stage':
+            case SSE_EVENT_TYPES.STAGE:
               if (STAGE_LABELS[data.content]) {
                 msg.statusText = STAGE_LABELS[data.content]
               }
               break
 
             // 思考过程
-            case 'thinking':
+            case SSE_EVENT_TYPES.THINKING:
               msg.thinking += data.content
               break
 
             // 普通回答
-            case 'answer':
+            case SSE_EVENT_TYPES.ANSWER:
               msg.statusText = ''
               msg.thinkingOpen = false
               msg.content += data.content
               break
 
             // 引用来源
-            case 'citations':
+            case SSE_EVENT_TYPES.CITATIONS:
               msg.citations = data.citations || []
               break
 
             // 意图检测
-            case 'intent_detected':
+            case SSE_EVENT_TYPES.INTENT_DETECTED:
               msg.statusText = `意图识别: ${data.data?.intent === 'REQUIREMENT_EVAL' ? '需求评估' : '问答'} (${data.data?.confidence})`
               break
 
             // 需要澄清
-            case 'clarification_needed':
+            case SSE_EVENT_TYPES.CLARIFICATION_NEEDED:
               msg.type = 'CLARIFICATION'
               msg.content = '请选择您想要进行的操作：'
               msg.options = (data.data || []).map(opt => ({
@@ -443,7 +436,7 @@ const onSubmit = async ({ message, documentId }) => {
               break
 
             // 评估阶段
-            case 'evaluation_stage':
+            case SSE_EVENT_TYPES.EVALUATION_STAGE:
               if (STAGE_LABELS[data.data]) {
                 msg.statusText = STAGE_LABELS[data.data]
               } else {
@@ -455,7 +448,7 @@ const onSubmit = async ({ message, documentId }) => {
               break
 
             // 评估结果
-            case 'evaluation_result':
+            case SSE_EVENT_TYPES.EVALUATION_RESULT:
               msg.type = 'EVALUATION_REPORT'
               const report = data.data
               if (report) {
@@ -490,20 +483,20 @@ const onSubmit = async ({ message, documentId }) => {
               break
 
             // 评估完成
-            case 'evaluation_done':
+            case SSE_EVENT_TYPES.EVALUATION_DONE:
               msg.statusText = ''
               msg.loading = false
               break
 
             // 完成
-            case 'done':
+            case SSE_EVENT_TYPES.DONE:
               msg.grounded = data.status === 'grounded'
               msg.statusText = ''
               msg.loading = false
               break
 
             // 错误
-            case 'error':
+            case SSE_EVENT_TYPES.ERROR:
               msg.statusText = ''
               msg.loading = false
               msg.content = data.content || '请求失败，请稍后重试。'

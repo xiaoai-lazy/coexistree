@@ -1,30 +1,42 @@
 package io.github.xiaoailazy.coexistree.document.repository;
 
-import io.github.xiaoailazy.coexistree.shared.integration.AbstractRepositoryTest;
-import io.github.xiaoailazy.coexistree.shared.integration.TestDataFactory;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Transactional
-class DocumentRepositoryIntegrationTest extends AbstractRepositoryTest {
+@DataJpaTest
+@ActiveProfiles("test")
+class DocumentRepositoryIntegrationTest {
 
     @Autowired
     private DocumentRepository documentRepository;
 
+    private DocumentEntity createDocument(Long systemId, String fileName, String status) {
+        DocumentEntity doc = new DocumentEntity();
+        doc.setSystemId(systemId);
+        doc.setDocName(fileName);
+        doc.setOriginalFileName(fileName);
+        doc.setFilePath("/test/" + fileName);
+        doc.setContentType("text/markdown");
+        doc.setParseStatus(status);
+        doc.setDocType("MARKDOWN");
+        doc.setSecurityLevel(1);
+        doc.setCreatedAt(LocalDateTime.now());
+        doc.setUpdatedAt(LocalDateTime.now());
+        return doc;
+    }
+
     @Test
     void shouldSaveAndFindDocumentById() {
         // Given
-        DocumentEntity doc = TestDataFactory.aDocument()
-                .withDocName("test.md")
-                .withSystemId(1L)
-                .withParseStatus("SUCCESS")
-                .build();
+        DocumentEntity doc = createDocument(1L, "test.md", "SUCCESS");
 
         // When
         DocumentEntity saved = documentRepository.save(doc);
@@ -38,18 +50,9 @@ class DocumentRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldFindBySystemId() {
         // Given
-        documentRepository.save(TestDataFactory.aDocument()
-                .withSystemId(1L)
-                .withDocName("doc1.md")
-                .build());
-        documentRepository.save(TestDataFactory.aDocument()
-                .withSystemId(1L)
-                .withDocName("doc2.md")
-                .build());
-        documentRepository.save(TestDataFactory.aDocument()
-                .withSystemId(2L)
-                .withDocName("other.md")
-                .build());
+        documentRepository.save(createDocument(1L, "doc1.md", "SUCCESS"));
+        documentRepository.save(createDocument(1L, "doc2.md", "SUCCESS"));
+        documentRepository.save(createDocument(2L, "other.md", "SUCCESS"));
 
         // When
         List<DocumentEntity> docs = documentRepository.findBySystemId(1L);
@@ -63,10 +66,10 @@ class DocumentRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldCountBySystemId() {
         // Given
-        documentRepository.save(TestDataFactory.aDocument().withSystemId(1L).withDocName("a.md").build());
-        documentRepository.save(TestDataFactory.aDocument().withSystemId(1L).withDocName("b.md").build());
-        documentRepository.save(TestDataFactory.aDocument().withSystemId(1L).withDocName("c.md").build());
-        documentRepository.save(TestDataFactory.aDocument().withSystemId(2L).withDocName("other.md").build());
+        documentRepository.save(createDocument(1L, "a.md", "SUCCESS"));
+        documentRepository.save(createDocument(1L, "b.md", "SUCCESS"));
+        documentRepository.save(createDocument(1L, "c.md", "SUCCESS"));
+        documentRepository.save(createDocument(2L, "other.md", "SUCCESS"));
 
         // When
         long count1 = documentRepository.countBySystemId(1L);
@@ -91,9 +94,7 @@ class DocumentRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldUpdateDocumentStatus() {
         // Given
-        DocumentEntity doc = TestDataFactory.aDocument()
-                .withParseStatus("PENDING")
-                .build();
+        DocumentEntity doc = createDocument(1L, "test.md", "PENDING");
         DocumentEntity saved = documentRepository.save(doc);
 
         // When
@@ -108,7 +109,7 @@ class DocumentRepositoryIntegrationTest extends AbstractRepositoryTest {
     @Test
     void shouldDeleteDocument() {
         // Given
-        DocumentEntity doc = TestDataFactory.aDocument().build();
+        DocumentEntity doc = createDocument(1L, "test.md", "SUCCESS");
         DocumentEntity saved = documentRepository.save(doc);
 
         // When

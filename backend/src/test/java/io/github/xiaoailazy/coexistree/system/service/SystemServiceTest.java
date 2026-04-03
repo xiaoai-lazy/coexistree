@@ -8,6 +8,11 @@ import io.github.xiaoailazy.coexistree.system.dto.SystemResponse;
 import io.github.xiaoailazy.coexistree.system.dto.UpdateSystemRequest;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
 import io.github.xiaoailazy.coexistree.system.repository.SystemRepository;
+import io.github.xiaoailazy.coexistree.system.repository.SystemUserMappingRepository;
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
+import io.github.xiaoailazy.coexistree.user.entity.UserEntity;
+import io.github.xiaoailazy.coexistree.user.repository.UserRepository;
+import io.github.xiaoailazy.coexistree.user.entity.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,12 +37,26 @@ class SystemServiceTest {
     private SystemRepository systemRepository;
     @Mock
     private DocumentRepository documentRepository;
+    @Mock
+    private SystemUserMappingRepository systemUserMappingRepository;
+    @Mock
+    private UserRepository userRepository;
 
     private SystemServiceImpl systemService;
 
     @BeforeEach
     void setUp() {
-        systemService = new SystemServiceImpl(systemRepository, documentRepository);
+        systemService = new SystemServiceImpl(systemRepository, documentRepository, systemUserMappingRepository, userRepository);
+    }
+
+    private SecurityUserDetails createTestUser() {
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        user.setUsername("testuser");
+        user.setDisplayName("Test User");
+        user.setRole(UserRole.SUPER_ADMIN);
+        user.setPasswordHash("password");
+        return new SecurityUserDetails(user);
     }
 
     private SystemEntity createTestSystem(Long id, String code, String name) {
@@ -55,6 +74,7 @@ class SystemServiceTest {
     @Test
     void testCreateSystem() {
         CreateSystemRequest request = new CreateSystemRequest("ops", "运维系统", "运维知识库");
+        SecurityUserDetails user = createTestUser();
 
         when(systemRepository.existsBySystemCode("ops")).thenReturn(false);
         when(systemRepository.save(any(SystemEntity.class))).thenAnswer(invocation -> {
@@ -63,7 +83,7 @@ class SystemServiceTest {
             return entity;
         });
 
-        SystemResponse response = systemService.create(request);
+        SystemResponse response = systemService.create(request, user);
 
         assertThat(response).isNotNull();
         assertThat(response.id()).isEqualTo(1L);
@@ -78,8 +98,9 @@ class SystemServiceTest {
     @Test
     void testCreateSystemWithEmptyCode() {
         CreateSystemRequest request = new CreateSystemRequest("", "运维系统", "描述");
+        SecurityUserDetails user = createTestUser();
 
-        assertThatThrownBy(() -> systemService.create(request))
+        assertThatThrownBy(() -> systemService.create(request, user))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.SYSTEM_CODE_EMPTY);
@@ -88,8 +109,9 @@ class SystemServiceTest {
     @Test
     void testCreateSystemWithEmptyName() {
         CreateSystemRequest request = new CreateSystemRequest("ops", "", "描述");
+        SecurityUserDetails user = createTestUser();
 
-        assertThatThrownBy(() -> systemService.create(request))
+        assertThatThrownBy(() -> systemService.create(request, user))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.SYSTEM_NAME_EMPTY);
@@ -98,10 +120,11 @@ class SystemServiceTest {
     @Test
     void testCreateSystemWithDuplicateCode() {
         CreateSystemRequest request = new CreateSystemRequest("ops", "运维系统", "描述");
+        SecurityUserDetails user = createTestUser();
 
         when(systemRepository.existsBySystemCode("ops")).thenReturn(true);
 
-        assertThatThrownBy(() -> systemService.create(request))
+        assertThatThrownBy(() -> systemService.create(request, user))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.SYSTEM_CODE_DUPLICATE);
@@ -213,10 +236,11 @@ class SystemServiceTest {
     void testListSystems() {
         SystemEntity entity1 = createTestSystem(1L, "ops", "运维系统");
         SystemEntity entity2 = createTestSystem(2L, "dev", "开发系统");
+        SecurityUserDetails user = createTestUser();
 
         when(systemRepository.findAll()).thenReturn(List.of(entity1, entity2));
 
-        List<SystemResponse> responses = systemService.list();
+        List<SystemResponse> responses = systemService.list(user);
 
         assertThat(responses).hasSize(2);
         assertThat(responses.get(0).systemCode()).isEqualTo("ops");
@@ -225,9 +249,10 @@ class SystemServiceTest {
 
     @Test
     void testListSystemsEmpty() {
+        SecurityUserDetails user = createTestUser();
         when(systemRepository.findAll()).thenReturn(List.of());
 
-        List<SystemResponse> responses = systemService.list();
+        List<SystemResponse> responses = systemService.list(user);
 
         assertThat(responses).isEmpty();
     }

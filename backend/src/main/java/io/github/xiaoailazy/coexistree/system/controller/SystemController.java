@@ -1,11 +1,16 @@
 package io.github.xiaoailazy.coexistree.system.controller;
 
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
 import io.github.xiaoailazy.coexistree.shared.api.ApiResponse;
+import io.github.xiaoailazy.coexistree.system.dto.AdminSystemResponse;
 import io.github.xiaoailazy.coexistree.system.dto.CreateSystemRequest;
 import io.github.xiaoailazy.coexistree.system.dto.SystemResponse;
+import io.github.xiaoailazy.coexistree.system.dto.TransferOwnershipRequest;
 import io.github.xiaoailazy.coexistree.system.dto.UpdateSystemRequest;
 import io.github.xiaoailazy.coexistree.system.service.SystemService;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,13 +26,16 @@ public class SystemController {
     }
 
     @GetMapping
-    public ApiResponse<List<SystemResponse>> list() {
-        return ApiResponse.success(systemService.list());
+    public ApiResponse<List<SystemResponse>> list(
+            @AuthenticationPrincipal SecurityUserDetails userDetails) {
+        return ApiResponse.success(systemService.list(userDetails));
     }
 
     @PostMapping
-    public ApiResponse<SystemResponse> create(@Valid @RequestBody CreateSystemRequest request) {
-        return ApiResponse.success(systemService.create(request));
+    public ApiResponse<SystemResponse> create(
+            @Valid @RequestBody CreateSystemRequest request,
+            @AuthenticationPrincipal SecurityUserDetails userDetails) {
+        return ApiResponse.success(systemService.create(request, userDetails));
     }
 
     @GetMapping("/{id}")
@@ -43,6 +51,23 @@ public class SystemController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         systemService.delete(id);
+        return ApiResponse.success(null);
+    }
+
+    // Admin endpoints
+
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiResponse<List<AdminSystemResponse>> listAllForAdmin() {
+        return ApiResponse.success(systemService.listAllForAdmin());
+    }
+
+    @PutMapping("/{id}/transfer")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ApiResponse<Void> transferOwnership(
+            @PathVariable Long id,
+            @Valid @RequestBody TransferOwnershipRequest request) {
+        systemService.transferOwnership(id, request.newOwnerId());
         return ApiResponse.success(null);
     }
 }

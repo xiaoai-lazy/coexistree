@@ -1,219 +1,154 @@
 package io.github.xiaoailazy.coexistree.chat.controller;
 
-import io.github.xiaoailazy.coexistree.shared.api.ApiResponse;
-import io.github.xiaoailazy.coexistree.shared.integration.AbstractIntegrationTest;
 import io.github.xiaoailazy.coexistree.chat.dto.ConversationResponse;
 import io.github.xiaoailazy.coexistree.chat.dto.CreateConversationRequest;
-import io.github.xiaoailazy.coexistree.chat.dto.MessageResponse;
-import io.github.xiaoailazy.coexistree.system.dto.CreateSystemRequest;
-import io.github.xiaoailazy.coexistree.system.dto.SystemResponse;
-import org.junit.jupiter.api.BeforeEach;
+import io.github.xiaoailazy.coexistree.chat.service.ConversationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-class ConversationControllerIntegrationTest extends AbstractIntegrationTest {
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class ConversationControllerIntegrationTest {
 
     @Autowired
-    private TestRestTemplate restTemplate;
+    private MockMvc mockMvc;
 
-    private static final String CONVERSATIONS_URL = "/api/v1/conversations";
-    private static final String SYSTEMS_URL = "/api/v1/systems";
+    @MockitoBean
+    private ConversationService conversationService;
 
-    private Long systemId;
-
-    @BeforeEach
-    void setUp() {
-        // Create a system with unique code for each test
-        String uniqueCode = "CONV-" + UUID.randomUUID().toString().substring(0, 8);
-        ResponseEntity<ApiResponse<SystemResponse>> response = restTemplate.exchange(
-                SYSTEMS_URL,
-                HttpMethod.POST,
-                new HttpEntity<>(new CreateSystemRequest(uniqueCode, "Conversation Test System", "For conversation tests")),
-                new ParameterizedTypeReference<>() {}
+    @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void shouldCreateConversation() throws Exception {
+        String conversationId = UUID.randomUUID().toString();
+        ConversationResponse response = new ConversationResponse(
+                conversationId, 1L, "Test Conversation", LocalDateTime.now(), LocalDateTime.now()
         );
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().success()).isTrue();
-        systemId = response.getBody().data().id();
+
+        when(conversationService.createConversation(eq(1L), any())).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "systemId": 1,
+                                    "title": "Test Conversation"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.conversationId").value(conversationId));
     }
 
     @Test
-    void shouldCreateConversation() {
-        // Given
-        CreateConversationRequest request = new CreateConversationRequest(systemId, "Test Conversation");
-
-        // When
-        ResponseEntity<ApiResponse<ConversationResponse>> response = restTemplate.exchange(
-                CONVERSATIONS_URL,
-                HttpMethod.POST,
-                new HttpEntity<>(request),
-                new ParameterizedTypeReference<>() {}
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void shouldCreateConversationWithoutTitle() throws Exception {
+        String conversationId = UUID.randomUUID().toString();
+        ConversationResponse response = new ConversationResponse(
+                conversationId, 1L, null, LocalDateTime.now(), LocalDateTime.now()
         );
 
-        // Then
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().success()).isTrue();
-        assertThat(response.getBody().data().systemId()).isEqualTo(systemId);
-        assertThat(response.getBody().data().title()).isEqualTo("Test Conversation");
-        assertThat(response.getBody().data().conversationId()).isNotNull();
+        when(conversationService.createConversation(eq(1L), eq(null))).thenReturn(response);
+
+        mockMvc.perform(post("/api/v1/conversations")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                    "systemId": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
-    void shouldCreateConversationWithoutTitle() {
-        // Given
-        CreateConversationRequest request = new CreateConversationRequest(systemId, null);
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void shouldListConversations() throws Exception {
+        String id1 = UUID.randomUUID().toString();
+        String id2 = UUID.randomUUID().toString();
 
-        // When
-        ResponseEntity<ApiResponse<ConversationResponse>> response = restTemplate.exchange(
-                CONVERSATIONS_URL,
-                HttpMethod.POST,
-                new HttpEntity<>(request),
-                new ParameterizedTypeReference<>() {}
+        ConversationResponse conv1 = new ConversationResponse(
+                id1, 1L, "会话1", LocalDateTime.now(), LocalDateTime.now()
+        );
+        ConversationResponse conv2 = new ConversationResponse(
+                id2, 1L, "会话2", LocalDateTime.now(), LocalDateTime.now()
         );
 
-        // Then
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().data().title()).isNull();
+        when(conversationService.listConversations()).thenReturn(List.of(conv1, conv2));
+
+        mockMvc.perform(get("/api/v1/conversations"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data", hasSize(2)));
     }
 
     @Test
-    void shouldGetConversationById() {
-        // Given - Create a conversation
-        CreateConversationRequest request = new CreateConversationRequest(systemId, "My Conversation");
-        ResponseEntity<ApiResponse<ConversationResponse>> createResponse = restTemplate.exchange(
-                CONVERSATIONS_URL,
-                HttpMethod.POST,
-                new HttpEntity<>(request),
-                new ParameterizedTypeReference<>() {}
-        );
-        String conversationId = createResponse.getBody().data().conversationId();
-
-        // When
-        ResponseEntity<ApiResponse<ConversationResponse>> getResponse = restTemplate.exchange(
-                CONVERSATIONS_URL + "/" + conversationId,
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void shouldGetConversationById() throws Exception {
+        String conversationId = UUID.randomUUID().toString();
+        ConversationResponse response = new ConversationResponse(
+                conversationId, 1L, "测试会话", LocalDateTime.now(), LocalDateTime.now()
         );
 
-        // Then
-        assertThat(getResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(getResponse.getBody()).isNotNull();
-        assertThat(getResponse.getBody().data().conversationId()).isEqualTo(conversationId);
-        assertThat(getResponse.getBody().data().title()).isEqualTo("My Conversation");
+        when(conversationService.getConversation(conversationId)).thenReturn(response);
+
+        mockMvc.perform(get("/api/v1/conversations/{conversationId}", conversationId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.conversationId").value(conversationId));
     }
 
     @Test
-    void shouldListAllConversations() {
-        // Given - Create multiple conversations
-        for (int i = 1; i <= 3; i++) {
-            restTemplate.exchange(
-                    CONVERSATIONS_URL,
-                    HttpMethod.POST,
-                    new HttpEntity<>(new CreateConversationRequest(systemId, "Conversation " + i)),
-                    new ParameterizedTypeReference<ApiResponse<ConversationResponse>>() {}
-            );
-        }
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void shouldGetMessagesForConversation() throws Exception {
+        String conversationId = UUID.randomUUID().toString();
 
-        // When
-        ResponseEntity<ApiResponse<List<ConversationResponse>>> listResponse = restTemplate.exchange(
-                CONVERSATIONS_URL,
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
+        when(conversationService.getMessages(conversationId)).thenReturn(List.of());
 
-        // Then
-        assertThat(listResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(listResponse.getBody()).isNotNull();
-        assertThat(listResponse.getBody().data()).hasSizeGreaterThanOrEqualTo(3);
+        mockMvc.perform(get("/api/v1/conversations/{conversationId}/messages", conversationId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
-    void shouldDeleteConversation() {
-        // Given - Create a conversation
-        CreateConversationRequest request = new CreateConversationRequest(systemId, "To Delete");
-        ResponseEntity<ApiResponse<ConversationResponse>> createResponse = restTemplate.exchange(
-                CONVERSATIONS_URL,
-                HttpMethod.POST,
-                new HttpEntity<>(request),
-                new ParameterizedTypeReference<>() {}
-        );
-        String conversationId = createResponse.getBody().data().conversationId();
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void shouldDeleteConversation() throws Exception {
+        String conversationId = UUID.randomUUID().toString();
+        doNothing().when(conversationService).deleteConversation(conversationId);
 
-        // When - Delete
-        ResponseEntity<ApiResponse<Void>> deleteResponse = restTemplate.exchange(
-                CONVERSATIONS_URL + "/" + conversationId,
-                HttpMethod.DELETE,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
-
-        // Then
-        assertThat(deleteResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        // Verify deletion - should return error
-        ResponseEntity<ApiResponse<ConversationResponse>> getResponse = restTemplate.exchange(
-                CONVERSATIONS_URL + "/" + conversationId,
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
-        assertThat(getResponse.getBody().success()).isFalse();
+        mockMvc.perform(delete("/api/v1/conversations/{conversationId}", conversationId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test
-    void shouldGetMessagesForConversation() {
-        // Given - Create a conversation
-        CreateConversationRequest request = new CreateConversationRequest(systemId, "Message Test");
-        ResponseEntity<ApiResponse<ConversationResponse>> createResponse = restTemplate.exchange(
-                CONVERSATIONS_URL,
-                HttpMethod.POST,
-                new HttpEntity<>(request),
-                new ParameterizedTypeReference<>() {}
-        );
-        String conversationId = createResponse.getBody().data().conversationId();
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void shouldReturnErrorForNonExistentConversation() throws Exception {
+        String conversationId = "non-existent-id";
+        when(conversationService.getConversation(conversationId))
+                .thenThrow(new io.github.xiaoailazy.coexistree.shared.exception.BusinessException(
+                        io.github.xiaoailazy.coexistree.shared.enums.ErrorCode.CONVERSATION_NOT_FOUND, "Not found"));
 
-        // When
-        ResponseEntity<ApiResponse<List<MessageResponse>>> messagesResponse = restTemplate.exchange(
-                CONVERSATIONS_URL + "/" + conversationId + "/messages",
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
-
-        // Then
-        assertThat(messagesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(messagesResponse.getBody()).isNotNull();
-        // New conversation has no messages
-        assertThat(messagesResponse.getBody().data()).isEmpty();
-    }
-
-    @Test
-    void shouldReturnErrorForNonExistentConversation() {
-        // When
-        ResponseEntity<ApiResponse<ConversationResponse>> response = restTemplate.exchange(
-                CONVERSATIONS_URL + "/nonexistent-id",
-                HttpMethod.GET,
-                null,
-                new ParameterizedTypeReference<>() {}
-        );
-
-        // Then - Not found returns 400 Bad Request
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().success()).isFalse();
+        mockMvc.perform(get("/api/v1/conversations/{conversationId}", conversationId))
+                .andExpect(status().isBadRequest());
     }
 }

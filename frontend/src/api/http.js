@@ -5,9 +5,29 @@ const http = axios.create({
   timeout: 30000
 })
 
+// Request interceptor - add token
+http.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  error => Promise.reject(error)
+)
+
+// Response interceptor - handle auth errors
 http.interceptors.response.use(
   res => res.data,
-  err => Promise.reject(err)
+  err => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+    }
+    return Promise.reject(err)
+  }
 )
 
 export default http

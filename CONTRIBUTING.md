@@ -8,8 +8,18 @@
 
 - JDK 21+
 - Node.js 20+
-- Maven 3.8+
+- Maven 3.9+
 - Git
+
+### 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 后端 | Java 21, Spring Boot 3.x, Spring Security, JWT |
+| 前端 | Vue 3, Pinia, Axios, Element Plus |
+| 数据库 | H2 (开发), MySQL/PostgreSQL (生产) |
+| AI | 字节跳动 Ark SDK |
+| 构建 | Maven, Vite |
 
 ### 本地启动
 

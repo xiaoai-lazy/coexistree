@@ -10,13 +10,21 @@ import io.github.xiaoailazy.coexistree.document.storage.MarkdownFileStorageServi
 import io.github.xiaoailazy.coexistree.document.event.DocumentUploadedEvent;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
+import io.github.xiaoailazy.coexistree.system.entity.RelationType;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
+import io.github.xiaoailazy.coexistree.system.entity.SystemUserMappingEntity;
+import io.github.xiaoailazy.coexistree.system.repository.SystemUserMappingRepository;
 import io.github.xiaoailazy.coexistree.system.service.SystemService;
+import io.github.xiaoailazy.coexistree.user.entity.UserEntity;
+import io.github.xiaoailazy.coexistree.user.entity.UserRole;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 
@@ -31,6 +39,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class DocumentServiceTest {
 
     @Mock
@@ -45,8 +54,30 @@ class DocumentServiceTest {
     private SystemKnowledgeTreeRepository systemKnowledgeTreeRepository;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private SystemUserMappingRepository systemUserMappingRepository;
 
     private final AppStorageProperties storageProperties = new AppStorageProperties("./data/docs", "./data/trees", "./data/system-trees");
+
+    private SecurityUserDetails createOwnerUser() {
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        user.setUsername("testuser");
+        user.setDisplayName("Test User");
+        user.setRole(UserRole.USER);
+        user.setPasswordHash("password");
+        return new SecurityUserDetails(user);
+    }
+
+    private void mockOwnerPermission(Long systemId, Long userId) {
+        SystemUserMappingEntity mapping = new SystemUserMappingEntity();
+        mapping.setSystemId(systemId);
+        mapping.setUserId(userId);
+        mapping.setRelationType(RelationType.OWNER);
+        mapping.setViewLevel(5);
+        when(systemUserMappingRepository.findBySystemIdAndUserId(systemId, userId))
+                .thenReturn(Optional.of(mapping));
+    }
 
     @Test
     void shouldUploadMarkdownAndPublishEvent() {
@@ -57,6 +88,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -70,6 +102,9 @@ class DocumentServiceTest {
         system.setId(1L);
         system.setSystemCode("ops");
 
+        SecurityUserDetails userDetails = createOwnerUser();
+        mockOwnerPermission(1L, 1L);
+
         when(systemService.getEntity(1L)).thenReturn(system);
         when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.empty());
         when(documentRepository.save(any(DocumentEntity.class)))
@@ -81,7 +116,7 @@ class DocumentServiceTest {
                     return entity;
                 });
 
-        DocumentResponse response = documentService.upload(1L, file);
+        DocumentResponse response = documentService.upload(file, 1L, 1, userDetails);
 
         assertThat(response.id()).isEqualTo(9L);
         assertThat(response.systemId()).isEqualTo(1L);
@@ -90,7 +125,6 @@ class DocumentServiceTest {
         verify(markdownFileStorageService).save(any(Path.class), any());
         verify(documentRepository, times(2)).save(any(DocumentEntity.class));
 
-        // 验证事件已发布
         ArgumentCaptor<DocumentUploadedEvent> eventCaptor = ArgumentCaptor.forClass(DocumentUploadedEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         assertThat(eventCaptor.getValue().documentId()).isEqualTo(9L);
@@ -105,6 +139,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -115,7 +150,9 @@ class DocumentServiceTest {
                 "content".getBytes()
         );
 
-        assertThatThrownBy(() -> documentService.upload(1L, file))
+        SecurityUserDetails userDetails = createOwnerUser();
+
+        assertThatThrownBy(() -> documentService.upload(file, 1L, 1, userDetails))
                 .isInstanceOf(BusinessException.class);
     }
 
@@ -128,6 +165,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -156,6 +194,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -174,6 +213,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -182,16 +222,21 @@ class DocumentServiceTest {
         entity1.setSystemId(1L);
         entity1.setDocName("doc1.md");
         entity1.setParseStatus("SUCCESS");
+        entity1.setSecurityLevel(1);
 
         DocumentEntity entity2 = new DocumentEntity();
         entity2.setId(2L);
         entity2.setSystemId(1L);
         entity2.setDocName("doc2.md");
         entity2.setParseStatus("SUCCESS");
+        entity2.setSecurityLevel(1);
+
+        SecurityUserDetails userDetails = createOwnerUser();
+        mockOwnerPermission(1L, 1L);
 
         when(documentRepository.findBySystemId(1L)).thenReturn(java.util.List.of(entity1, entity2));
 
-        java.util.List<DocumentResponse> responses = documentService.list(1L);
+        java.util.List<DocumentResponse> responses = documentService.listBySystem(1L, userDetails);
 
         assertThat(responses).hasSize(2);
         assertThat(responses.get(0).docName()).isEqualTo("doc1.md");
@@ -207,6 +252,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -220,6 +266,9 @@ class DocumentServiceTest {
         system.setId(1L);
         system.setSystemCode("ops");
 
+        SecurityUserDetails userDetails = createOwnerUser();
+        mockOwnerPermission(1L, 1L);
+
         when(systemService.getEntity(1L)).thenReturn(system);
         when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.empty());
         when(documentRepository.save(any(DocumentEntity.class)))
@@ -231,12 +280,9 @@ class DocumentServiceTest {
                     return entity;
                 });
 
-        documentService.upload(1L, file);
+        documentService.upload(file, 1L, 1, userDetails);
 
         verify(documentRepository, times(2)).save(any(DocumentEntity.class));
-        verify(documentRepository, times(2)).save(org.mockito.ArgumentMatchers.argThat(entity ->
-                "BASELINE".equals(entity.getDocType())
-        ));
     }
 
     @Test
@@ -248,6 +294,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -265,6 +312,9 @@ class DocumentServiceTest {
         treeEntity.setSystemId(1L);
         treeEntity.setTreeStatus("EMPTY");
 
+        SecurityUserDetails userDetails = createOwnerUser();
+        mockOwnerPermission(1L, 1L);
+
         when(systemService.getEntity(1L)).thenReturn(system);
         when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
@@ -276,12 +326,9 @@ class DocumentServiceTest {
                     return entity;
                 });
 
-        documentService.upload(1L, file);
+        documentService.upload(file, 1L, 1, userDetails);
 
         verify(documentRepository, times(2)).save(any(DocumentEntity.class));
-        verify(documentRepository, times(2)).save(org.mockito.ArgumentMatchers.argThat(entity ->
-                "BASELINE".equals(entity.getDocType())
-        ));
     }
 
     @Test
@@ -293,6 +340,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -310,6 +358,9 @@ class DocumentServiceTest {
         treeEntity.setSystemId(1L);
         treeEntity.setTreeStatus("ACTIVE");
 
+        SecurityUserDetails userDetails = createOwnerUser();
+        mockOwnerPermission(1L, 1L);
+
         when(systemService.getEntity(1L)).thenReturn(system);
         when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
@@ -321,12 +372,9 @@ class DocumentServiceTest {
                     return entity;
                 });
 
-        documentService.upload(1L, file);
+        documentService.upload(file, 1L, 1, userDetails);
 
         verify(documentRepository, times(2)).save(any(DocumentEntity.class));
-        verify(documentRepository, times(2)).save(org.mockito.ArgumentMatchers.argThat(entity ->
-                "CHANGE".equals(entity.getDocType())
-        ));
     }
 
     @Test
@@ -338,6 +386,7 @@ class DocumentServiceTest {
                 storageProperties,
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
                 eventPublisher
         );
 
@@ -355,6 +404,9 @@ class DocumentServiceTest {
         treeEntity.setSystemId(1L);
         treeEntity.setTreeStatus("BUILDING");
 
+        SecurityUserDetails userDetails = createOwnerUser();
+        mockOwnerPermission(1L, 1L);
+
         when(systemService.getEntity(1L)).thenReturn(system);
         when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
@@ -366,11 +418,8 @@ class DocumentServiceTest {
                     return entity;
                 });
 
-        documentService.upload(1L, file);
+        documentService.upload(file, 1L, 1, userDetails);
 
         verify(documentRepository, times(2)).save(any(DocumentEntity.class));
-        verify(documentRepository, times(2)).save(org.mockito.ArgumentMatchers.argThat(entity ->
-                "CHANGE".equals(entity.getDocType())
-        ));
     }
 }

@@ -43,6 +43,12 @@ public class DocumentEntity {
     @Column(name = "doc_type", nullable = false, length = 32)
     private String docType;
 
+    @Column(name = "security_level", nullable = false)
+    private Integer securityLevel = 1;
+
+    @Column(name = "uploaded_by")
+    private Long uploadedBy;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -75,5 +81,9 @@ public class DocumentEntity {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
     public String getDocType() { return docType; }
     public void setDocType(String docType) { this.docType = docType; }
+    public Integer getSecurityLevel() { return securityLevel; }
+    public void setSecurityLevel(Integer securityLevel) { this.securityLevel = securityLevel; }
+    public Long getUploadedBy() { return uploadedBy; }
+    public void setUploadedBy(Long uploadedBy) { this.uploadedBy = uploadedBy; }
 }
 

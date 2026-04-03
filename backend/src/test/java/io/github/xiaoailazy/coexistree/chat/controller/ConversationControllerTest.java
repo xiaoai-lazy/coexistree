@@ -5,8 +5,11 @@ import io.github.xiaoailazy.coexistree.chat.dto.MessageResponse;
 import io.github.xiaoailazy.coexistree.chat.service.ConversationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -22,7 +25,9 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(ConversationController.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
 class ConversationControllerTest {
 
     @Autowired
@@ -32,6 +37,7 @@ class ConversationControllerTest {
     private ConversationService conversationService;
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testCreateConversation() throws Exception {
         // Given
         String conversationId = UUID.randomUUID().toString();
@@ -56,6 +62,7 @@ class ConversationControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testCreateConversationWithTitle() throws Exception {
         // Given
         String conversationId = UUID.randomUUID().toString();
@@ -79,6 +86,7 @@ class ConversationControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testListConversations() throws Exception {
         // Given
         String id1 = UUID.randomUUID().toString();
@@ -103,6 +111,7 @@ class ConversationControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testGetConversation() throws Exception {
         // Given
         String conversationId = UUID.randomUUID().toString();
@@ -121,6 +130,7 @@ class ConversationControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testGetMessages() throws Exception {
         // Given
         String conversationId = UUID.randomUUID().toString();
@@ -141,6 +151,7 @@ class ConversationControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testDeleteConversation() throws Exception {
         // Given
         String conversationId = UUID.randomUUID().toString();
@@ -154,6 +165,7 @@ class ConversationControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testGenerateTitle() throws Exception {
         // Given
         String conversationId = UUID.randomUUID().toString();
@@ -167,6 +179,7 @@ class ConversationControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testListEmptyConversations() throws Exception {
         // Given
         when(conversationService.listConversations()).thenReturn(List.of());

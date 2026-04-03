@@ -1,7 +1,7 @@
 package io.github.xiaoailazy.coexistree.knowledge.controller;
 
 import io.github.xiaoailazy.coexistree.shared.api.ApiResponse;
-import io.github.xiaoailazy.coexistree.shared.integration.AbstractIntegrationTest;
+import io.github.xiaoailazy.coexistree.shared.test.BaseDataIntegrationTest;
 import io.github.xiaoailazy.coexistree.knowledge.dto.KnowledgeTreeStatusResponse;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
@@ -10,7 +10,6 @@ import io.github.xiaoailazy.coexistree.system.dto.SystemResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpMethod;
@@ -22,10 +21,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class KnowledgeTreeControllerIntegrationTest extends AbstractIntegrationTest {
-
-    @Autowired
-    private TestRestTemplate restTemplate;
+class KnowledgeTreeControllerIntegrationTest extends BaseDataIntegrationTest {
 
     @Autowired
     private SystemKnowledgeTreeRepository systemKnowledgeTreeRepository;

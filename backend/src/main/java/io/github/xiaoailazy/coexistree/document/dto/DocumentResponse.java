@@ -9,6 +9,8 @@ public record DocumentResponse(
         String originalFileName,
         String parseStatus,
         String parseError,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        Integer securityLevel,
+        Long uploadedBy
 ) {
 }

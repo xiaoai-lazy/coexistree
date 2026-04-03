@@ -54,3 +54,13 @@ app:
     api-key: ${LLM_API_KEY}
     default-model: ${LLM_MODEL}
     base-url: ${LLM_BASE_URL}
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION:86400000}
+  issuer: CoExistree
+
+admin:
+  username: admin
+  password: ${ADMIN_INITIAL_PASSWORD}
+  display-name: 系统管理员

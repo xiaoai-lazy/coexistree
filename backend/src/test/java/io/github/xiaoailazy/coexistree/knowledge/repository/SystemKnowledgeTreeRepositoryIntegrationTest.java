@@ -1,31 +1,39 @@
 package io.github.xiaoailazy.coexistree.knowledge.repository;
 
-import io.github.xiaoailazy.coexistree.shared.integration.AbstractRepositoryTest;
-import io.github.xiaoailazy.coexistree.shared.integration.TestDataFactory;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.test.context.ActiveProfiles;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@Transactional
-class SystemKnowledgeTreeRepositoryIntegrationTest extends AbstractRepositoryTest {
+@DataJpaTest
+@ActiveProfiles("test")
+class SystemKnowledgeTreeRepositoryIntegrationTest {
 
     @Autowired
     private SystemKnowledgeTreeRepository systemKnowledgeTreeRepository;
 
+    private SystemKnowledgeTreeEntity createTree(Long systemId, int version, String status) {
+        SystemKnowledgeTreeEntity tree = new SystemKnowledgeTreeEntity();
+        tree.setSystemId(systemId);
+        tree.setTreeFilePath("/data/trees/" + systemId + "/tree.json");
+        tree.setTreeVersion(version);
+        tree.setNodeCount(10);
+        tree.setTreeStatus(status);
+        tree.setCreatedAt(LocalDateTime.now());
+        tree.setUpdatedAt(LocalDateTime.now());
+        return tree;
+    }
+
     @Test
     void shouldSaveAndFindById() {
         // Given
-        SystemKnowledgeTreeEntity tree = TestDataFactory.aSystemKnowledgeTree()
-                .withSystemId(1L)
-                .withTreeVersion(1)
-                .withNodeCount(10)
-                .withTreeStatus("ACTIVE")
-                .build();
+        SystemKnowledgeTreeEntity tree = createTree(1L, 1, "ACTIVE");
 
         // When
         SystemKnowledgeTreeEntity saved = systemKnowledgeTreeRepository.save(tree);
@@ -40,11 +48,7 @@ class SystemKnowledgeTreeRepositoryIntegrationTest extends AbstractRepositoryTes
     @Test
     void shouldFindBySystemId() {
         // Given
-        SystemKnowledgeTreeEntity tree = TestDataFactory.aSystemKnowledgeTree()
-                .withSystemId(1L)
-                .withTreeVersion(5)
-                .withTreeStatus("ACTIVE")
-                .build();
+        SystemKnowledgeTreeEntity tree = createTree(1L, 5, "ACTIVE");
         systemKnowledgeTreeRepository.save(tree);
 
         // When
@@ -67,10 +71,7 @@ class SystemKnowledgeTreeRepositoryIntegrationTest extends AbstractRepositoryTes
     @Test
     void shouldUpdateTreeVersion() {
         // Given
-        SystemKnowledgeTreeEntity tree = TestDataFactory.aSystemKnowledgeTree()
-                .withSystemId(1L)
-                .withTreeVersion(1)
-                .build();
+        SystemKnowledgeTreeEntity tree = createTree(1L, 1, "ACTIVE");
         SystemKnowledgeTreeEntity saved = systemKnowledgeTreeRepository.save(tree);
 
         // When
@@ -87,10 +88,7 @@ class SystemKnowledgeTreeRepositoryIntegrationTest extends AbstractRepositoryTes
     @Test
     void shouldUpdateTreeStatus() {
         // Given
-        SystemKnowledgeTreeEntity tree = TestDataFactory.aSystemKnowledgeTree()
-                .withSystemId(1L)
-                .withTreeStatus("BUILDING")
-                .build();
+        SystemKnowledgeTreeEntity tree = createTree(1L, 1, "BUILDING");
         systemKnowledgeTreeRepository.save(tree);
 
         // When
@@ -105,9 +103,7 @@ class SystemKnowledgeTreeRepositoryIntegrationTest extends AbstractRepositoryTes
     @Test
     void shouldDeleteTree() {
         // Given
-        SystemKnowledgeTreeEntity tree = TestDataFactory.aSystemKnowledgeTree()
-                .withSystemId(1L)
-                .build();
+        SystemKnowledgeTreeEntity tree = createTree(1L, 1, "ACTIVE");
         SystemKnowledgeTreeEntity saved = systemKnowledgeTreeRepository.save(tree);
 
         // When

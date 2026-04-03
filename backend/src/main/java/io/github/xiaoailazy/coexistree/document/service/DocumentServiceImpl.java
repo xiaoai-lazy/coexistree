@@ -1,5 +1,6 @@
 package io.github.xiaoailazy.coexistree.document.service;
 
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
 import io.github.xiaoailazy.coexistree.shared.util.FilePathUtils;
@@ -12,7 +13,10 @@ import io.github.xiaoailazy.coexistree.document.storage.MarkdownFileStorageServi
 import io.github.xiaoailazy.coexistree.document.event.DocumentUploadedEvent;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
+import io.github.xiaoailazy.coexistree.system.entity.RelationType;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
+import io.github.xiaoailazy.coexistree.system.entity.SystemUserMappingEntity;
+import io.github.xiaoailazy.coexistree.system.repository.SystemUserMappingRepository;
 import io.github.xiaoailazy.coexistree.system.service.SystemService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -40,6 +44,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final AppStorageProperties storageProperties;
     private final MarkdownFileStorageService markdownFileStorageService;
     private final SystemKnowledgeTreeRepository systemKnowledgeTreeRepository;
+    private final SystemUserMappingRepository systemUserMappingRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public DocumentServiceImpl(
@@ -49,6 +54,7 @@ public class DocumentServiceImpl implements DocumentService {
             AppStorageProperties storageProperties,
             MarkdownFileStorageService markdownFileStorageService,
             SystemKnowledgeTreeRepository systemKnowledgeTreeRepository,
+            SystemUserMappingRepository systemUserMappingRepository,
             ApplicationEventPublisher eventPublisher
     ) {
         this.documentRepository = documentRepository;
@@ -57,14 +63,18 @@ public class DocumentServiceImpl implements DocumentService {
         this.storageProperties = storageProperties;
         this.markdownFileStorageService = markdownFileStorageService;
         this.systemKnowledgeTreeRepository = systemKnowledgeTreeRepository;
+        this.systemUserMappingRepository = systemUserMappingRepository;
         this.eventPublisher = eventPublisher;
     }
 
     @Override
     @Transactional
-    public DocumentResponse upload(Long systemId, MultipartFile file) {
+    public DocumentResponse upload(MultipartFile file, Long systemId, Integer securityLevel, SecurityUserDetails userDetails) {
         log.info("开始上传文档, systemId={}, fileName={}, size={}",
                 systemId, file.getOriginalFilename(), file.getSize());
+
+        // Check permission
+        checkUploadPermission(systemId, userDetails, securityLevel);
 
         validateMarkdown(file);
         SystemEntity system = systemService.getEntity(systemId);
@@ -94,6 +104,8 @@ public class DocumentServiceImpl implements DocumentService {
         entity.setDocType(docType);
         entity.setFilePath("");
         entity.setContentHash(contentHash);  // 保存哈希值
+        entity.setSecurityLevel(securityLevel != null ? securityLevel : 1);
+        entity.setUploadedBy(userDetails.getId());
         entity.setCreatedAt(LocalDateTime.now());
         entity.setUpdatedAt(LocalDateTime.now());
 
@@ -182,16 +194,23 @@ public class DocumentServiceImpl implements DocumentService {
     }
 
     @Override
-    public List<DocumentResponse> list(Long systemId) {
+    public List<DocumentResponse> listBySystem(Long systemId, SecurityUserDetails userDetails) {
         log.debug("查询文档列表, systemId={}", systemId);
-        if (systemId == null) {
-            return documentRepository.findAll().stream()
-                    .map(this::toResponse)
+
+        // Check access
+        checkSystemAccess(systemId, userDetails);
+
+        List<DocumentEntity> documents = documentRepository.findBySystemId(systemId);
+
+        // Filter by view level for non-owners
+        Integer viewLevel = getViewLevel(systemId, userDetails);
+        if (viewLevel != null && viewLevel < 5) {
+            documents = documents.stream()
+                    .filter(d -> d.getSecurityLevel() <= viewLevel)
                     .toList();
         }
-        return documentRepository.findBySystemId(systemId).stream()
-                .map(this::toResponse)
-                .toList();
+
+        return documents.stream().map(this::toResponse).toList();
     }
 
     @Override
@@ -266,6 +285,67 @@ public class DocumentServiceImpl implements DocumentService {
         }
     }
 
+    @Override
+    @Transactional
+    public void updateSecurityLevel(Long documentId, Integer securityLevel, SecurityUserDetails userDetails) {
+        DocumentEntity document = documentRepository.findById(documentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND, "Document not found"));
+
+        // Only SUPER_ADMIN or uploader can change security level
+        if (!userDetails.getRole().name().equals("SUPER_ADMIN") &&
+                !document.getUploadedBy().equals(userDetails.getId())) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED, "无权限修改此文档");
+        }
+
+        // Check view level constraint for MAINTAINER
+        if (!userDetails.getRole().name().equals("SUPER_ADMIN")) {
+            Integer viewLevel = getViewLevel(document.getSystemId(), userDetails);
+            if (viewLevel != null && securityLevel > viewLevel) {
+                throw new BusinessException(ErrorCode.PERMISSION_DENIED, "安全等级不能超过您的查看等级");
+            }
+        }
+
+        document.setSecurityLevel(securityLevel);
+        document.setUpdatedAt(LocalDateTime.now());
+        documentRepository.save(document);
+    }
+
+    private void checkUploadPermission(Long systemId, SecurityUserDetails userDetails, Integer securityLevel) {
+        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
+            return;
+        }
+
+        SystemUserMappingEntity mapping = systemUserMappingRepository.findBySystemIdAndUserId(systemId, userDetails.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PERMISSION_DENIED, "无权限上传文档到此系统"));
+
+        if (mapping.getRelationType() == RelationType.SUBSCRIBER) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED, "订阅者不能上传文档");
+        }
+
+        if (mapping.getViewLevel() < securityLevel) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED, "文档安全等级不能超过您的查看等级");
+        }
+    }
+
+    private void checkSystemAccess(Long systemId, SecurityUserDetails userDetails) {
+        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
+            return;
+        }
+
+        systemUserMappingRepository.findBySystemIdAndUserId(systemId, userDetails.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PERMISSION_DENIED, "无权限访问此系统"));
+    }
+
+    private Integer getViewLevel(Long systemId, SecurityUserDetails userDetails) {
+        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
+            return 5;
+        }
+
+        return systemUserMappingRepository.findBySystemIdAndUserId(systemId, userDetails.getId())
+                .map(SystemUserMappingEntity::getViewLevel)
+                .orElse(0);
+    }
+
     private DocumentResponse toResponse(DocumentEntity entity) {
         return new DocumentResponse(
                 entity.getId(),
@@ -274,7 +354,9 @@ public class DocumentServiceImpl implements DocumentService {
                 entity.getOriginalFileName(),
                 entity.getParseStatus(),
                 entity.getParseError(),
-                entity.getCreatedAt()
+                entity.getCreatedAt(),
+                entity.getSecurityLevel(),
+                entity.getUploadedBy()
         );
     }
 }

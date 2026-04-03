@@ -2,6 +2,7 @@ package io.github.xiaoailazy.coexistree.chat.service;
 
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmResponseParser;
+import io.github.xiaoailazy.coexistree.shared.test.LlmMockFactory;
 import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeSearchResult;
@@ -65,8 +66,7 @@ class TreeSearchServiceImplTest {
 
         when(treeSanitizer.removeText(structure)).thenReturn(sanitizedStructure);
         when(promptTemplateService.buildTreeSearchPrompt(query, sanitizedStructure)).thenReturn(prompt);
-        when(llmClient.chat(prompt, model, 0.0, previousResponseId))
-                .thenReturn(new LlmClient.LlmResponse("resp_456", llmResponse));
+        LlmMockFactory.mockChat(llmClient, llmResponse, "resp_456");
         when(llmResponseParser.parseTreeSearch(llmResponse)).thenReturn(expectedResult);
 
         // When
@@ -95,7 +95,7 @@ class TreeSearchServiceImplTest {
 
         when(treeSanitizer.removeText(structure)).thenReturn(sanitizedStructure);
         when(promptTemplateService.buildTreeSearchPrompt(query, sanitizedStructure)).thenReturn(prompt);
-        when(llmClient.chat(prompt, null, 0.0, null)).thenReturn(new LlmClient.LlmResponse(null, llmResponse));
+        LlmMockFactory.mockChat(llmClient, llmResponse, null);
         when(llmResponseParser.parseTreeSearch(llmResponse)).thenReturn(expectedResult);
 
         // When
@@ -121,7 +121,7 @@ class TreeSearchServiceImplTest {
 
         when(treeSanitizer.removeText(structure)).thenReturn(sanitizedStructure);
         when(promptTemplateService.buildTreeSearchPrompt(query, sanitizedStructure)).thenReturn(prompt);
-        when(llmClient.chat(prompt, null, 0.0, null)).thenReturn(new LlmClient.LlmResponse(null, llmResponse));
+        LlmMockFactory.mockChat(llmClient, llmResponse, null);
         when(llmResponseParser.parseTreeSearch(llmResponse)).thenReturn(expectedResult);
 
         // When
@@ -150,8 +150,7 @@ class TreeSearchServiceImplTest {
 
         when(treeSanitizer.removeText(structure)).thenReturn(sanitizedStructure);
         when(promptTemplateService.buildTreeSearchPrompt(anyString(), anyList())).thenReturn(prompt);
-        when(llmClient.chat(anyString(), isNull(), eq(0.0), isNull()))
-                .thenReturn(new LlmClient.LlmResponse(null, llmResponse));
+        LlmMockFactory.mockChat(llmClient, llmResponse, null);
         when(llmResponseParser.parseTreeSearch(llmResponse)).thenReturn(expectedResult);
 
         // When

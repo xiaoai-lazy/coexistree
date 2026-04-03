@@ -1,9 +1,11 @@
 package io.github.xiaoailazy.coexistree.document.controller;
 
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
 import io.github.xiaoailazy.coexistree.shared.api.ApiResponse;
 import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
 import io.github.xiaoailazy.coexistree.document.service.DocumentService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,20 +23,30 @@ public class DocumentController {
     }
 
     @GetMapping
-    public ApiResponse<List<DocumentResponse>> list(
-            @RequestParam(required = false) Long systemId
-    ) {
+    public ApiResponse<List<DocumentResponse>> listBySystem(
+            @RequestParam Long systemId,
+            @AuthenticationPrincipal SecurityUserDetails userDetails) {
         log.debug("查询文档列表, systemId={}", systemId);
-        return ApiResponse.success(documentService.list(systemId));
+        return ApiResponse.success(documentService.listBySystem(systemId, userDetails));
     }
 
     @PostMapping("/upload")
     public ApiResponse<DocumentResponse> upload(
-            @RequestParam Long systemId,
-            @RequestParam MultipartFile file
-    ) {
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("systemId") Long systemId,
+            @RequestParam(value = "securityLevel", defaultValue = "1") Integer securityLevel,
+            @AuthenticationPrincipal SecurityUserDetails userDetails) {
         log.debug("上传文档, systemId={}, fileName={}", systemId, file.getOriginalFilename());
-        return ApiResponse.success(documentService.upload(systemId, file));
+        return ApiResponse.success(documentService.upload(file, systemId, securityLevel, userDetails));
+    }
+
+    @PutMapping("/{id}/security-level")
+    public ApiResponse<Void> updateSecurityLevel(
+            @PathVariable Long id,
+            @RequestParam Integer securityLevel,
+            @AuthenticationPrincipal SecurityUserDetails userDetails) {
+        documentService.updateSecurityLevel(id, securityLevel, userDetails);
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/{id}")

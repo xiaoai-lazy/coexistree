@@ -4,9 +4,12 @@ import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
 import io.github.xiaoailazy.coexistree.document.service.DocumentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -14,15 +17,15 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(DocumentController.class)
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
 class DocumentControllerTest {
 
     @Autowired
@@ -32,15 +35,16 @@ class DocumentControllerTest {
     private DocumentService documentService;
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testListAllDocuments() throws Exception {
         // Given
         DocumentResponse doc1 = createDocumentResponse(1L, "doc1.md", "SUCCESS");
         DocumentResponse doc2 = createDocumentResponse(2L, "doc2.md", "PROCESSING");
 
-        when(documentService.list(null)).thenReturn(List.of(doc1, doc2));
+        when(documentService.listBySystem(any(), any())).thenReturn(List.of(doc1, doc2));
 
-        // When & Then
-        mockMvc.perform(get("/api/v1/documents"))
+        // When & Then - endpoint is /?systemId={systemId}
+        mockMvc.perform(get("/api/v1/documents").param("systemId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.data", hasSize(2)))
@@ -49,16 +53,15 @@ class DocumentControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testListDocumentsBySystemId() throws Exception {
         // Given
-        Long systemId = 1L;
         DocumentResponse doc = createDocumentResponse(1L, "doc.md", "SUCCESS");
 
-        when(documentService.list(systemId)).thenReturn(List.of(doc));
+        when(documentService.listBySystem(any(), any())).thenReturn(List.of(doc));
 
-        // When & Then
-        mockMvc.perform(get("/api/v1/documents")
-                        .param("systemId", "1"))
+        // When & Then - endpoint is /?systemId={systemId}
+        mockMvc.perform(get("/api/v1/documents").param("systemId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.data", hasSize(1)))
@@ -66,9 +69,9 @@ class DocumentControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testUploadDocument() throws Exception {
         // Given
-        Long systemId = 1L;
         MockMultipartFile file = new MockMultipartFile(
                 "file",
                 "test.md",
@@ -77,12 +80,13 @@ class DocumentControllerTest {
         );
 
         DocumentResponse response = createDocumentResponse(1L, "test.md", "PROCESSING");
-        when(documentService.upload(eq(systemId), any())).thenReturn(response);
+        when(documentService.upload(any(), any(), any(), any())).thenReturn(response);
 
         // When & Then
         mockMvc.perform(multipart("/api/v1/documents/upload")
                         .file(file)
-                        .param("systemId", "1"))
+                        .param("systemId", "1")
+                        .param("securityLevel", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.data.id").value(1))
@@ -90,6 +94,7 @@ class DocumentControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testGetDocumentById() throws Exception {
         // Given
         Long documentId = 1L;
@@ -107,6 +112,7 @@ class DocumentControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testDeleteDocument() throws Exception {
         // Given
         Long documentId = 1L;
@@ -120,21 +126,22 @@ class DocumentControllerTest {
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testListEmptyDocuments() throws Exception {
         // Given
-        when(documentService.list(null)).thenReturn(List.of());
+        when(documentService.listBySystem(any(), any())).thenReturn(List.of());
 
-        // When & Then
-        mockMvc.perform(get("/api/v1/documents"))
+        // When & Then - endpoint is /?systemId={systemId}
+        mockMvc.perform(get("/api/v1/documents").param("systemId", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("OK"))
                 .andExpect(jsonPath("$.data", hasSize(0)));
     }
 
     @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
     void testUploadLargeFile() throws Exception {
         // Given
-        Long systemId = 1L;
         byte[] largeContent = new byte[1024 * 1024]; // 1MB
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -144,12 +151,13 @@ class DocumentControllerTest {
         );
 
         DocumentResponse response = createDocumentResponse(1L, "large.md", "PROCESSING");
-        when(documentService.upload(eq(systemId), any())).thenReturn(response);
+        when(documentService.upload(any(), any(), any(), any())).thenReturn(response);
 
         // When & Then
         mockMvc.perform(multipart("/api/v1/documents/upload")
                         .file(file)
-                        .param("systemId", "1"))
+                        .param("systemId", "1")
+                        .param("securityLevel", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.originalFileName").value("large.md"));
     }
@@ -162,7 +170,9 @@ class DocumentControllerTest {
                 filename,
                 status,
                 null,
-                LocalDateTime.now()
+                LocalDateTime.now(),
+                1,
+                1L
         );
     }
 }

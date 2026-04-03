@@ -38,3 +38,9 @@ app:
     api-key: test-api-key
     default-model: test-model
     base-url: http://localhost:9999/api
+
+jwt:
+  secret: test-secret-key-that-is-long-enough-for-hs256-algorithm-at-least-32-bytes
+
+admin:
+  password: test-admin-password

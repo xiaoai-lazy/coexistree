@@ -6,6 +6,9 @@
 *.ipr
 *.iws
 
+# Worktrees
+.worktrees/
+
 # Backend
 backend/target/
 backend/*.log
@@ -41,3 +44,11 @@ backend/.m2/
 # Data directory (H2 database, runtime files)
 /data/
 backend/EOF
+
+# Local environment config
+.env
+.env.local
+.env.*.local
+
+# Project local documentation
+CLAUDE.md

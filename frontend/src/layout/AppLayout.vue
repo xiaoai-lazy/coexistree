@@ -5,7 +5,7 @@
       <div class="sidebar-header">
         <div class="logo">
           <div class="logo-icon">
-            <el-icon :size="24"><HomeFilled /></el-icon>
+            <el-icon :size="24"><Collection /></el-icon>
           </div>
           <span class="logo-text">CoExistree</span>
         </div>
@@ -39,16 +39,25 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { HomeFilled, Document, ChatDotRound } from '@element-plus/icons-vue'
+import { Document, ChatDotRound, Setting, Collection } from '@element-plus/icons-vue'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const currentPath = computed(() => route.path)
 const sidebarWidth = 220
 
-const navItems = [
-  { path: '/document', icon: Document, label: '知识库' },
-  { path: '/chat', icon: ChatDotRound, label: '问答' },
-]
+const authStore = useAuthStore()
+
+const navItems = computed(() => {
+  const items = [
+    { path: '/document', icon: Document, label: '知识库' },
+    { path: '/chat', icon: ChatDotRound, label: '问答' },
+  ]
+  if (authStore.isAdmin) {
+    items.push({ path: '/admin', icon: Setting, label: '系统管理' })
+  }
+  return items
+})
 </script>
 
 <style scoped>

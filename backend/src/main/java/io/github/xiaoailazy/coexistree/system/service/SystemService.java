@@ -1,5 +1,7 @@
 package io.github.xiaoailazy.coexistree.system.service;
 
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
+import io.github.xiaoailazy.coexistree.system.dto.AdminSystemResponse;
 import io.github.xiaoailazy.coexistree.system.dto.CreateSystemRequest;
 import io.github.xiaoailazy.coexistree.system.dto.SystemResponse;
 import io.github.xiaoailazy.coexistree.system.dto.UpdateSystemRequest;
@@ -11,7 +13,7 @@ public interface SystemService {
 
     SystemEntity getEntity(Long id);
 
-    SystemResponse create(CreateSystemRequest request);
+    SystemResponse create(CreateSystemRequest request, SecurityUserDetails userDetails);
 
     SystemResponse get(Long id);
 
@@ -19,5 +21,9 @@ public interface SystemService {
 
     void delete(Long id);
 
-    List<SystemResponse> list();
+    List<SystemResponse> list(SecurityUserDetails userDetails);
+
+    List<AdminSystemResponse> listAllForAdmin();
+
+    void transferOwnership(Long systemId, Long newOwnerId);
 }

@@ -3,6 +3,7 @@ package io.github.xiaoailazy.coexistree.indexer.model;
 public class NodeSource {
     private Long docId;
     private String nodeId;
+    private Integer securityLevel;
 
     public Long getDocId() {
         return docId;
@@ -18,5 +19,13 @@ public class NodeSource {
 
     public void setNodeId(String nodeId) {
         this.nodeId = nodeId;
+    }
+
+    public Integer getSecurityLevel() {
+        return securityLevel;
+    }
+
+    public void setSecurityLevel(Integer securityLevel) {
+        this.securityLevel = securityLevel;
     }
 }

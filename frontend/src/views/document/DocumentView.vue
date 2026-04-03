@@ -238,7 +238,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import http from '@/api/http'
 import { listSystems, createSystem, updateSystem, deleteSystem } from '@/api/system'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
+import { confirmDelete as _confirmDelete } from '@/utils/dialog'
 
 // Systems data
 const systems = ref([])
@@ -443,7 +444,7 @@ const statusClass = (s) => ({ PENDING: 'status-pending', PROCESSING: 'status-pro
 
 const removeDocument = async (row) => {
   try {
-    await ElMessageBox.confirm('确定删除该文档吗？', '提示', { type: 'warning' })
+    await _confirmDelete()
     await http.delete(`/v1/documents/${row.id}`)
     documents.value = documents.value.filter(d => d.id !== row.id)
     if (!hasProcessing.value) stopPolling()

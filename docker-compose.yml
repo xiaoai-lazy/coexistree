@@ -1,32 +1,58 @@
 # CoExistree Docker Compose 配置
-# 使用 H2 文件数据库，简单轻量，无需额外服务
+# 生产环境：Nginx + HTTPS + 后端服务
 
 version: '3.8'
 
 services:
-  app:
+  nginx:
+    image: nginx:alpine
+    container_name: coexistree-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      # 如需 HTTPS 取消下面注释
+      # - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      # 如需 HTTPS 取消下面两行注释
+      # - ./nginx/ssl:/etc/nginx/ssl:ro
+      # - ./nginx/certbot-data:/var/www/certbot:ro
+      - ./data/docs:/data/docs:ro
+    depends_on:
+      - backend
+    networks:
+      - coexistree
+
+  backend:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: coexistree
-    ports:
-      - "8080:8080"
+    container_name: coexistree-backend
+    restart: unless-stopped
     environment:
-      - SERVER_PORT=8080
       - SPRING_PROFILES_ACTIVE=prod
-      - LLM_API_KEY=${LLM_API_KEY:-}
-      - LLM_MODEL=${LLM_MODEL:-doubao-seed-2-0-pro-260215}
-      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD:-admin123}
-      - JWT_SECRET=${JWT_SECRET:-default-secret-key-must-be-changed-in-production}
+      - SERVER_PORT=8080
+      - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
+      - ADMIN_INITIAL_PASSWORD=${ADMIN_INITIAL_PASSWORD}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
+      - DB_USERNAME=${DB_USERNAME:-sa}
+      - DB_PASSWORD=${DB_PASSWORD:-}
       - STORAGE_PATH=/app/data
-      - JAVA_OPTS=-Xms512m -Xmx2g -XX:+UseG1GC
+      - LOG_PATH=/app/data/logs
     volumes:
       - ./data:/app/data
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     networks:
-      - coexistree-network
+      - coexistree
 
 networks:
-  coexistree-network:
+  coexistree:
     driver: bridge

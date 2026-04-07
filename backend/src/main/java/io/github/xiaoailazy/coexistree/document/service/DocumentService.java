@@ -1,5 +1,6 @@
 package io.github.xiaoailazy.coexistree.document.service;
 
+import io.github.xiaoailazy.coexistree.document.dto.DocumentContentResponse;
 import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
 import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,4 +18,7 @@ public interface DocumentService {
     void delete(Long documentId);
 
     void updateSecurityLevel(Long documentId, Integer securityLevel, SecurityUserDetails userDetails);
+
+    // Get document content for preview
+    DocumentContentResponse getContent(Long documentId, SecurityUserDetails userDetails);
 }

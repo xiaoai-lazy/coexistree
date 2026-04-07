@@ -1,9 +1,10 @@
 package io.github.xiaoailazy.coexistree.document.controller;
 
-import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
-import io.github.xiaoailazy.coexistree.shared.api.ApiResponse;
+import io.github.xiaoailazy.coexistree.document.dto.DocumentContentResponse;
 import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
 import io.github.xiaoailazy.coexistree.document.service.DocumentService;
+import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
+import io.github.xiaoailazy.coexistree.shared.api.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -60,5 +61,13 @@ public class DocumentController {
         log.debug("删除文档, documentId={}", id);
         documentService.delete(id);
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/{id}/content")
+    public ApiResponse<DocumentContentResponse> getContent(
+            @PathVariable Long id,
+            @AuthenticationPrincipal SecurityUserDetails userDetails) {
+        log.debug("获取文档内容, documentId={}", id);
+        return ApiResponse.success(documentService.getContent(id, userDetails));
     }
 }

@@ -471,9 +471,33 @@ public class ConversationServiceImpl implements ConversationService {
                 sendEvent(emitter, SseEvent.stage("answer", "success"));
 
                 citations = relevantNodes.stream()
-                        .map(node -> new Citation(
-                                node.getNodeId(), node.getTitle(),
-                                snippet(node.getSummary()), node.getSources()))
+                        .map(node -> {
+                            // Get docId and docName from the first source
+                            Long docId = null;
+                            String docName = null;
+                            if (node.getSources() != null && !node.getSources().isEmpty()) {
+                                NodeSource firstSource = node.getSources().get(0);
+                                docId = firstSource.getDocId();
+                                if (docId != null) {
+                                    try {
+                                        DocumentEntity doc = documentRepository.findById(docId).orElse(null);
+                                        docName = doc != null ? doc.getDocName() : null;
+                                    } catch (Exception e) {
+                                        log.warn("Failed to get document name for docId={}", docId);
+                                    }
+                                }
+                            }
+                            return new Citation(
+                                    node.getNodeId(),
+                                    node.getTitle(),
+                                    snippet(node.getSummary()),
+                                    node.getSources(),
+                                    docId,
+                                    docName,
+                                    node.getLineNum(),
+                                    node.getLevel()
+                            );
+                        })
                         .toList();
                 grounded = true;
             }

@@ -11,7 +11,16 @@ public record SseEvent(
         String content,
         List<CitationDto> citations
 ) {
-    public record CitationDto(String path, String text) {
+    public record CitationDto(
+            String path,
+            String text,
+            // New fields
+            Long docId,
+            String docName,
+            String nodeId,
+            Integer lineNum,
+            Integer level
+    ) {
         public static CitationDto from(Citation c) {
             // 构建路径：nodeId + title，如果有 sources 则追加来源信息
             String path = c.nodeId() + (c.title() != null ? " > " + c.title() : "");
@@ -21,7 +30,16 @@ public record SseEvent(
                         .collect(Collectors.joining(", "));
                 path += " [来源: " + sourcesInfo + "]";
             }
-            return new CitationDto(path, c.snippet());
+
+            return new CitationDto(
+                    path,
+                    c.snippet(),
+                    c.docId(),
+                    c.docName(),
+                    c.nodeId(),
+                    c.lineNum(),
+                    c.level()
+            );
         }
     }
 

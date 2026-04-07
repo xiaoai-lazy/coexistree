@@ -34,10 +34,13 @@ app:
     doc-root: ./target/test-data/docs
     tree-root: ./target/test-data/trees
     system-tree-root: ./target/test-data/system-trees
-  llm:
-    api-key: test-api-key
-    default-model: test-model
-    base-url: http://localhost:9999/api
+
+llm:
+  openai:
+    api-key: ${LLM_API_KEY:test-api-key}
+    model: ${LLM_MODEL:gpt-4o-mini}
+    base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+    enabled: ${LLM_TEST_ENABLED:false}
 
 jwt:
   secret: test-secret-key-that-is-long-enough-for-hs256-algorithm-at-least-32-bytes

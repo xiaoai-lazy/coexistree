@@ -1,13 +1,19 @@
 package io.github.xiaoailazy.coexistree.document.service;
 
+import io.github.xiaoailazy.coexistree.document.dto.DocumentContentResponse;
+import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
+import io.github.xiaoailazy.coexistree.document.dto.NodeAnchor;
+import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
+import io.github.xiaoailazy.coexistree.document.entity.DocumentTreeEntity;
+import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
+import io.github.xiaoailazy.coexistree.indexer.model.DocumentTree;
+import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
+import io.github.xiaoailazy.coexistree.indexer.storage.TreeFileLoader;
 import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
 import io.github.xiaoailazy.coexistree.shared.util.FilePathUtils;
 import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
-import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
-import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
-import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentTreeRepository;
 import io.github.xiaoailazy.coexistree.document.storage.MarkdownFileStorageService;
 import io.github.xiaoailazy.coexistree.document.event.DocumentUploadedEvent;
@@ -30,6 +36,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +53,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final SystemKnowledgeTreeRepository systemKnowledgeTreeRepository;
     private final SystemUserMappingRepository systemUserMappingRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final TreeFileLoader treeFileLoader;
 
     public DocumentServiceImpl(
             DocumentRepository documentRepository,
@@ -55,7 +63,8 @@ public class DocumentServiceImpl implements DocumentService {
             MarkdownFileStorageService markdownFileStorageService,
             SystemKnowledgeTreeRepository systemKnowledgeTreeRepository,
             SystemUserMappingRepository systemUserMappingRepository,
-            ApplicationEventPublisher eventPublisher
+            ApplicationEventPublisher eventPublisher,
+            TreeFileLoader treeFileLoader
     ) {
         this.documentRepository = documentRepository;
         this.documentTreeRepository = documentTreeRepository;
@@ -65,6 +74,7 @@ public class DocumentServiceImpl implements DocumentService {
         this.systemKnowledgeTreeRepository = systemKnowledgeTreeRepository;
         this.systemUserMappingRepository = systemUserMappingRepository;
         this.eventPublisher = eventPublisher;
+        this.treeFileLoader = treeFileLoader;
     }
 
     @Override
@@ -282,6 +292,112 @@ public class DocumentServiceImpl implements DocumentService {
         if (file.getSize() > MAX_FILE_SIZE) {
             log.warn("文件大小超过限制, fileName={}, size={}", name, file.getSize());
             throw new BusinessException(ErrorCode.FILE_SIZE_EXCEEDED, "File size exceeds 10MB limit");
+        }
+    }
+
+    @Override
+    public DocumentContentResponse getContent(Long documentId, SecurityUserDetails userDetails) {
+        log.debug("获取文档内容, documentId={}", documentId);
+
+        // 1. 查询文档
+        DocumentEntity document = documentRepository.findById(documentId)
+                .orElseThrow(() -> {
+                    log.warn("文档不存在, documentId={}", documentId);
+                    return new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND, "Document not found");
+                });
+
+        // 2. 权限校验（复用现有逻辑）
+        checkDocumentAccess(document, userDetails);
+
+        // 3. 读取原始文件内容
+        String content = readOriginalFile(document.getFilePath());
+
+        // 4. 获取文档树锚点
+        List<NodeAnchor> anchors = getDocumentAnchors(documentId);
+
+        // 5. 构建响应
+        String downloadUrl = "/api/v1/documents/" + documentId + "/download";
+
+        return new DocumentContentResponse(
+                document.getId(),
+                document.getDocName(),
+                "text/markdown",
+                content,
+                downloadUrl,
+                anchors
+        );
+    }
+
+    private void checkDocumentAccess(DocumentEntity document, SecurityUserDetails userDetails) {
+        // SUPER_ADMIN 有全部权限
+        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
+            return;
+        }
+
+        // 检查系统访问权限
+        systemUserMappingRepository.findBySystemIdAndUserId(document.getSystemId(), userDetails.getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PERMISSION_DENIED, "无权限访问此文档"));
+
+        // 检查密级
+        Integer viewLevel = getViewLevel(document.getSystemId(), userDetails);
+        if (viewLevel != null && document.getSecurityLevel() > viewLevel) {
+            throw new BusinessException(ErrorCode.PERMISSION_DENIED, "文档密级超出您的查看权限");
+        }
+    }
+
+    private String readOriginalFile(String filePath) {
+        if (filePath == null || filePath.isBlank()) {
+            return "";
+        }
+        try {
+            Path path = Path.of(filePath);
+            if (Files.exists(path)) {
+                return Files.readString(path);
+            }
+            log.warn("文件不存在, path={}", filePath);
+            return "";
+        } catch (Exception e) {
+            log.error("读取文件失败, path={}", filePath, e);
+            return "";
+        }
+    }
+
+    private List<NodeAnchor> getDocumentAnchors(Long documentId) {
+        Optional<DocumentTreeEntity> treeOpt = documentTreeRepository.findByDocumentId(documentId);
+        if (treeOpt.isEmpty()) {
+            return List.of();
+        }
+
+        try {
+            DocumentTree tree = treeFileLoader.load(Path.of(treeOpt.get().getTreeFilePath()));
+            return extractAnchors(tree.getStructure());
+        } catch (Exception e) {
+            log.warn("加载文档树失败, documentId={}", documentId, e);
+            return List.of();
+        }
+    }
+
+    private List<NodeAnchor> extractAnchors(List<TreeNode> nodes) {
+        List<NodeAnchor> anchors = new ArrayList<>();
+        for (TreeNode node : nodes) {
+            extractAnchorsRecursive(node, anchors);
+        }
+        return anchors;
+    }
+
+    private void extractAnchorsRecursive(TreeNode node, List<NodeAnchor> anchors) {
+        if (node.getNodeId() != null && node.getLineNum() != null) {
+            anchors.add(new NodeAnchor(
+                    node.getNodeId(),
+                    node.getTitle(),
+                    node.getLineNum(),
+                    node.getLevel()
+            ));
+        }
+        if (node.getNodes() != null) {
+            for (TreeNode child : node.getNodes()) {
+                extractAnchorsRecursive(child, anchors);
+            }
         }
     }
 

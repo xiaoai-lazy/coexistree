@@ -159,6 +159,8 @@
                     v-for="(cite, ci) in msg.citations"
                     :key="ci"
                     class="citation-item"
+                    :class="{ 'clickable': cite.docId }"
+                    @click="openDocumentPreview(cite, msg.citations)"
                   >
                     <div class="citation-path">{{ cite.path }}</div>
                     <div class="citation-text">{{ cite.text }}</div>
@@ -183,6 +185,14 @@
         <p class="input-hint">AI 生成内容仅供参考，请核实重要信息</p>
       </div>
     </main>
+
+    <!-- Document Preview Drawer -->
+    <DocumentPreviewDrawer
+      v-model="previewVisible"
+      :doc-id="previewDocId"
+      :initial-node-id="previewNodeId"
+      :citations="currentMessageCitations"
+    />
   </div>
 </template>
 
@@ -197,6 +207,7 @@ import { marked } from 'marked'
 import ChatInputArea from './components/ChatInputArea.vue'
 import EvaluationReportCard from './components/EvaluationReportCard.vue'
 import ClarificationOptions from './components/ClarificationOptions.vue'
+import DocumentPreviewDrawer from './components/DocumentPreviewDrawer.vue'
 import { SSE_EVENT_TYPES, STAGE_LABELS } from '@/constants/sse-events'
 
 const historyOpen = ref(true)
@@ -210,6 +221,12 @@ const sending = ref(false)
 const contentRef = ref(null)
 const attachedDocument = ref(null)
 let abortController = null
+
+// Document preview drawer state
+const previewVisible = ref(false)
+const previewDocId = ref(null)
+const previewNodeId = ref(null)
+const currentMessageCitations = ref([])
 
 // Configure marked for safe rendering
 marked.setOptions({
@@ -535,6 +552,19 @@ const handleClarificationSelect = (option) => {
     message: option.value,
     documentId: attachedDocument.value?.id
   })
+}
+
+function openDocumentPreview(citation, allCitations) {
+  if (!citation.docId) {
+    // 兼容旧数据，没有 docId 时给出提示
+    ElMessage.info('该引用暂不支持跳转')
+    return
+  }
+
+  previewDocId.value = citation.docId
+  previewNodeId.value = citation.nodeId
+  currentMessageCitations.value = allCitations || []
+  previewVisible.value = true
 }
 </script>
 
@@ -906,6 +936,16 @@ const handleClarificationSelect = (option) => {
 .citation-item {
   padding-left: 12px;
   border-left: 3px solid var(--color-primary-light);
+  cursor: default;
+}
+
+.citation-item.clickable {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.citation-item.clickable:hover {
+  background-color: var(--color-bg-hover);
 }
 
 .citation-path {

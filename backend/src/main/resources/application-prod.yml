@@ -50,10 +50,15 @@ app:
     doc-root: ${STORAGE_PATH:./data}/docs
     tree-root: ${STORAGE_PATH:./data}/trees
     system-tree-root: ${STORAGE_PATH:./data}/system-trees
-  llm:
+
+llm:
+  openai:
     api-key: ${LLM_API_KEY}
-    default-model: ${LLM_MODEL}
-    base-url: ${LLM_BASE_URL}
+    model: ${LLM_MODEL:gpt-4o-mini}
+    base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+    temperature: 0.3
+    max-tokens: 4096
+    timeout: 60000
 
 jwt:
   secret: ${JWT_SECRET}

@@ -56,6 +56,8 @@ class DocumentServiceTest {
     private ApplicationEventPublisher eventPublisher;
     @Mock
     private SystemUserMappingRepository systemUserMappingRepository;
+    @Mock
+    private io.github.xiaoailazy.coexistree.indexer.storage.TreeFileLoader treeFileLoader;
 
     private final AppStorageProperties storageProperties = new AppStorageProperties("./data/docs", "./data/trees", "./data/system-trees");
 
@@ -89,7 +91,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -140,7 +143,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -166,7 +170,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         DocumentEntity entity = new DocumentEntity();
@@ -195,7 +200,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         when(documentRepository.findById(999L)).thenReturn(java.util.Optional.empty());
@@ -214,7 +220,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         DocumentEntity entity1 = new DocumentEntity();
@@ -253,7 +260,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -295,7 +303,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -341,7 +350,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -387,7 +397,8 @@ class DocumentServiceTest {
                 markdownFileStorageService,
                 systemKnowledgeTreeRepository,
                 systemUserMappingRepository,
-                eventPublisher
+                eventPublisher,
+                treeFileLoader
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -421,5 +432,112 @@ class DocumentServiceTest {
         documentService.upload(file, 1L, 1, userDetails);
 
         verify(documentRepository, times(2)).save(any(DocumentEntity.class));
+    }
+
+    @Test
+    void shouldGetDocumentContentWithAnchors() {
+        // Given
+        DocumentServiceImpl documentService = new DocumentServiceImpl(
+                documentRepository,
+                documentTreeRepository,
+                systemService,
+                storageProperties,
+                markdownFileStorageService,
+                systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
+                eventPublisher,
+                treeFileLoader
+        );
+
+        Long documentId = 1L;
+        DocumentEntity entity = new DocumentEntity();
+        entity.setId(documentId);
+        entity.setSystemId(1L);
+        entity.setDocName("test.md");
+        entity.setOriginalFileName("test.md");
+        entity.setFilePath("/nonexistent/path.md"); // File doesn't exist, should return empty content
+        entity.setSecurityLevel(1);
+
+        SecurityUserDetails userDetails = createOwnerUser();
+        mockOwnerPermission(1L, 1L);
+
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(entity));
+
+        // When
+        io.github.xiaoailazy.coexistree.document.dto.DocumentContentResponse response =
+                documentService.getContent(documentId, userDetails);
+
+        // Then
+        assertThat(response.docId()).isEqualTo(documentId);
+        assertThat(response.docName()).isEqualTo("test.md");
+        assertThat(response.contentType()).isEqualTo("text/markdown");
+        assertThat(response.content()).isEqualTo(""); // File doesn't exist
+        assertThat(response.downloadUrl()).isEqualTo("/api/v1/documents/1/download");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenDocumentNotFoundForGetContent() {
+        // Given
+        DocumentServiceImpl documentService = new DocumentServiceImpl(
+                documentRepository,
+                documentTreeRepository,
+                systemService,
+                storageProperties,
+                markdownFileStorageService,
+                systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
+                eventPublisher,
+                treeFileLoader
+        );
+
+        Long documentId = 999L;
+        SecurityUserDetails userDetails = createOwnerUser();
+
+        when(documentRepository.findById(documentId)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> documentService.getContent(documentId, userDetails))
+                .isInstanceOf(io.github.xiaoailazy.coexistree.shared.exception.BusinessException.class)
+                .hasMessageContaining("Document not found");
+    }
+
+    @Test
+    void shouldThrowExceptionWhenNoPermissionForGetContent() {
+        // Given
+        DocumentServiceImpl documentService = new DocumentServiceImpl(
+                documentRepository,
+                documentTreeRepository,
+                systemService,
+                storageProperties,
+                markdownFileStorageService,
+                systemKnowledgeTreeRepository,
+                systemUserMappingRepository,
+                eventPublisher,
+                treeFileLoader
+        );
+
+        Long documentId = 1L;
+        DocumentEntity entity = new DocumentEntity();
+        entity.setId(documentId);
+        entity.setSystemId(1L);
+        entity.setDocName("secret.md");
+        entity.setSecurityLevel(5); // High security level
+
+        UserEntity user = new UserEntity();
+        user.setId(1L);
+        user.setUsername("testuser");
+        user.setDisplayName("Test User");
+        user.setRole(UserRole.USER);
+        user.setPasswordHash("password");
+        SecurityUserDetails userDetails = new SecurityUserDetails(user);
+
+        // User has no mapping to this system
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(entity));
+        when(systemUserMappingRepository.findBySystemIdAndUserId(1L, 1L)).thenReturn(Optional.empty());
+
+        // When & Then
+        assertThatThrownBy(() -> documentService.getContent(documentId, userDetails))
+                .isInstanceOf(io.github.xiaoailazy.coexistree.shared.exception.BusinessException.class)
+                .hasMessageContaining("无权限访问此文档");
     }
 }

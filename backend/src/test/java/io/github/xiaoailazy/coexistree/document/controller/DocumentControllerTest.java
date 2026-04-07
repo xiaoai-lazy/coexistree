@@ -1,6 +1,8 @@
 package io.github.xiaoailazy.coexistree.document.controller;
 
+import io.github.xiaoailazy.coexistree.document.dto.DocumentContentResponse;
 import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
+import io.github.xiaoailazy.coexistree.document.dto.NodeAnchor;
 import io.github.xiaoailazy.coexistree.document.service.DocumentService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -160,6 +162,66 @@ class DocumentControllerTest {
                         .param("securityLevel", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.originalFileName").value("large.md"));
+    }
+
+    @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void testGetDocumentContent() throws Exception {
+        // Given
+        Long documentId = 1L;
+        List<NodeAnchor> anchors = List.of(
+                new NodeAnchor("node-1", "标题1", 10, 1),
+                new NodeAnchor("node-2", "标题2", 25, 2)
+        );
+        DocumentContentResponse response = new DocumentContentResponse(
+                documentId,
+                "test.md",
+                "text/markdown",
+                "# 测试文档\n\n这是内容",
+                "/api/v1/documents/1/download",
+                anchors
+        );
+
+        when(documentService.getContent(any(), any())).thenReturn(response);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/documents/{id}/content", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.docId").value(1))
+                .andExpect(jsonPath("$.data.docName").value("test.md"))
+                .andExpect(jsonPath("$.data.contentType").value("text/markdown"))
+                .andExpect(jsonPath("$.data.content").value("# 测试文档\n\n这是内容"))
+                .andExpect(jsonPath("$.data.downloadUrl").value("/api/v1/documents/1/download"))
+                .andExpect(jsonPath("$.data.anchors", hasSize(2)))
+                .andExpect(jsonPath("$.data.anchors[0].nodeId").value("node-1"))
+                .andExpect(jsonPath("$.data.anchors[0].lineNum").value(10))
+                .andExpect(jsonPath("$.data.anchors[1].nodeId").value("node-2"))
+                .andExpect(jsonPath("$.data.anchors[1].level").value(2));
+    }
+
+    @Test
+    @WithMockUser(username = "testuser", roles = {"USER"})
+    void testGetDocumentContentWithEmptyAnchors() throws Exception {
+        // Given
+        Long documentId = 2L;
+        DocumentContentResponse response = new DocumentContentResponse(
+                documentId,
+                "empty.md",
+                "text/markdown",
+                "",
+                "/api/v1/documents/2/download",
+                List.of()
+        );
+
+        when(documentService.getContent(any(), any())).thenReturn(response);
+
+        // When & Then
+        mockMvc.perform(get("/api/v1/documents/{id}/content", documentId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("OK"))
+                .andExpect(jsonPath("$.data.docId").value(2))
+                .andExpect(jsonPath("$.data.anchors", hasSize(0)));
     }
 
     private DocumentResponse createDocumentResponse(Long id, String filename, String status) {

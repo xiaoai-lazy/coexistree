@@ -37,10 +37,15 @@ app:
     doc-root: ./data/docs
     tree-root: ./data/trees
     system-tree-root: ./data/system-trees
-  llm:
+
+llm:
+  openai:
     api-key: ${LLM_API_KEY}
-    default-model: ${LLM_MODEL}
-    base-url: ${LLM_BASE_URL}
+    model: ${LLM_MODEL:gpt-4o-mini}
+    base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+    temperature: 0.3
+    max-tokens: 4096
+    timeout: 60000
 
 jwt:
   secret: ${JWT_SECRET:dev-secret-key-must-be-at-least-32-characters-long}

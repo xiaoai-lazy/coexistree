@@ -93,8 +93,8 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
                     "System knowledge tree is not ready, current status: " + entity.getTreeStatus());
         }
 
-        // 10.2.1.3 加载系统树 JSON 文件
-        Path treePath = Path.of(entity.getTreeFilePath());
+        // 10.2.1.3 加载系统树 JSON 文件（从相对路径解析）
+        Path treePath = FilePathUtils.resolveSystemTreePath(storageProperties.systemTreeRoot(), entity.getTreeFilePath());
         SystemKnowledgeTree tree = systemTreeFileLoader.load(treePath);
 
         log.info("成功获取活跃系统知识树, systemId={}, treeVersion={}, nodeCount={}", 
@@ -173,7 +173,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             int nodeCount = countNodes(systemNodes);
             SystemKnowledgeTreeEntity entity = new SystemKnowledgeTreeEntity();
             entity.setSystemId(system.getId());
-            entity.setTreeFilePath(treePath.toString());
+            entity.setTreeFilePath(FilePathUtils.getRelativeSystemTreePath(system.getSystemCode()));
             entity.setTreeVersion(1);
             entity.setDescription(llmOutput.getSystemDescription());
             entity.setNodeCount(nodeCount);

@@ -1,5 +1,6 @@
 package io.github.xiaoailazy.coexistree.knowledge.checker;
 
+import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
@@ -35,6 +36,9 @@ class SystemTreeConsistencyCheckerTest {
     @Mock
     private TreeNodeCounter nodeCounter;
 
+    @Mock
+    private AppStorageProperties storageProperties;
+
     @TempDir
     Path tempDir;
 
@@ -42,7 +46,8 @@ class SystemTreeConsistencyCheckerTest {
 
     @BeforeEach
     void setUp() {
-        checker = new SystemTreeConsistencyChecker(repository, fileLoader, nodeCounter);
+        when(storageProperties.systemTreeRoot()).thenReturn(tempDir.toString());
+        checker = new SystemTreeConsistencyChecker(repository, fileLoader, nodeCounter, storageProperties);
     }
 
     @Test

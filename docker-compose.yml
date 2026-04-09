@@ -1,22 +1,34 @@
 # CoExistree Docker Compose 配置
-# 生产环境：Nginx + HTTPS + 后端服务
-
-version: '3.8'
+# 生产环境：Nginx + 后端服务
+# 用法: docker compose up -d
+#
+# SSL 证书配置说明：
+# 1. 准备证书文件：server.crt 和 server.key
+# 2. 放置到 nginx/ssl/ 目录
+# 3. 确保端口 443 已映射并挂载证书目录
+# 4. 启动服务：docker compose up -d
 
 services:
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: nginx-runtime
     container_name: coexistree-nginx
     restart: unless-stopped
     ports:
+      # HTTP 端口 - 自动重定向到 HTTPS
       - "80:80"
-      # 如需 HTTPS 取消下面注释
-      # - "443:443"
+      # HTTPS 端口 - SSL 证书访问
+      - "443:443"
     volumes:
+      # Nginx 配置文件
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      # 如需 HTTPS 取消下面两行注释
-      # - ./nginx/ssl:/etc/nginx/ssl:ro
-      # - ./nginx/certbot-data:/var/www/certbot:ro
+      # SSL 证书目录 (crt/key 格式)
+      # 将宿主机 ./nginx/ssl/ 挂载到容器的 /etc/nginx/ssl/
+      # 需要包含：server.crt (证书) 和 server.key (私钥)
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # 文档目录
       - ./data/docs:/data/docs:ro
     depends_on:
       - backend
@@ -27,8 +39,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: backend-runtime
+    image: coexistree-backend:latest
     container_name: coexistree-backend
     restart: unless-stopped
+    # 以 root 用户运行，确保对挂载目录有写权限
+    user: "0:0"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SERVER_PORT=8080
@@ -42,10 +58,15 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-}
       - STORAGE_PATH=/app/data
       - LOG_PATH=/app/data/logs
+      - JAVA_OPTS=${JAVA_OPTS:--Xms512m -Xmx2g -XX:+UseG1GC}
+      # CORS 跨域配置（逗号分隔多个域名）
+      # 示例: https://www.example.com,https://app.example.com
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173}
     volumes:
       - ./data:/app/data
+    # 健康检查
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -56,3 +77,6 @@ services:
 networks:
   coexistree:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

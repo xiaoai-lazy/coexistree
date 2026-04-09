@@ -32,8 +32,8 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-# =================== 阶段 3: 运行时镜像 ===================
-FROM eclipse-temurin:21-jre-alpine
+# =================== 阶段 3: 后端运行时镜像 ===================
+FROM eclipse-temurin:21-jre-alpine AS backend-runtime
 
 # 安装必要的工具
 RUN apk add --no-cache curl tzdata && \
@@ -51,9 +51,6 @@ WORKDIR /app
 COPY --from=backend-build /build/target/dependency/BOOT-INF/lib ./lib
 COPY --from=backend-build /build/target/dependency/META-INF ./META-INF
 COPY --from=backend-build /build/target/dependency/BOOT-INF/classes ./classes
-
-# 从前端构建复制静态资源
-COPY --from=frontend-build /build/dist ./static
 
 # 创建数据目录并设置权限
 RUN mkdir -p /app/data && chown -R coexistree:coexistree /app
@@ -76,3 +73,17 @@ EXPOSE 8080
 
 # 启动命令
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -cp classes:lib/* io.github.xiaoailazy.coexistree.CoExistreeApplication"]
+
+# =================== 阶段 4: Nginx 运行时镜像 ===================
+FROM nginx:alpine AS nginx-runtime
+
+# 从前端构建复制静态文件
+COPY --from=frontend-build /build/dist /app/static
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/ || exit 1
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

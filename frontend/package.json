@@ -20,6 +20,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.x",
-    "vite": "^5.x"
+    "rollup-plugin-visualizer": "^7.0.1",
+    "vite": "^5.x",
+    "vite-plugin-compression": "^0.5.1"
   }
 }

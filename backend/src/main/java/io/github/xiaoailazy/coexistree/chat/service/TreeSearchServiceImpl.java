@@ -3,6 +3,7 @@ package io.github.xiaoailazy.coexistree.chat.service;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmResponseParser;
 import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
+import io.github.xiaoailazy.coexistree.indexer.llm.RetryableLlmService;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeSearchResult;
 import io.github.xiaoailazy.coexistree.indexer.tree.TreeSanitizer;
@@ -16,19 +17,17 @@ import java.util.List;
 public class TreeSearchServiceImpl implements TreeSearchService {
 
     private final PromptTemplateService promptTemplateService;
-    private final LlmClient llmClient;
-    private final LlmResponseParser llmResponseParser;
+    private final RetryableLlmService retryableLlmService;
     private final TreeSanitizer treeSanitizer;
 
     public TreeSearchServiceImpl(
             PromptTemplateService promptTemplateService,
-            LlmClient llmClient,
-            LlmResponseParser llmResponseParser,
+
+            RetryableLlmService retryableLlmService,
             TreeSanitizer treeSanitizer
     ) {
         this.promptTemplateService = promptTemplateService;
-        this.llmClient = llmClient;
-        this.llmResponseParser = llmResponseParser;
+        this.retryableLlmService = retryableLlmService;
         this.treeSanitizer = treeSanitizer;
     }
 
@@ -46,11 +45,14 @@ public class TreeSearchServiceImpl implements TreeSearchService {
         String prompt = promptTemplateService.buildTreeSearchPrompt(query, treeWithoutText);
         log.debug("生成树搜索Prompt, prompt长度={}", prompt.length());
 
-        LlmClient.LlmResponse response = llmClient.chat(prompt, model, 0.0, previousResponseId);
-        log.debug("LLM响应长度={}, responseId={}", response.content().length(), response.responseId());
+        // 使用带重试的服务
+        RetryableLlmService.TreeSearchResultWithResponseId wrappedResult =
+                retryableLlmService.treeSearchWithResponseId(prompt, model, 0.0);
 
-        TreeSearchResult result = llmResponseParser.parseTreeSearch(response.content());
-        result.setResponseId(response.responseId());
+        TreeSearchResult result = wrappedResult.result();
+        log.debug("LLM响应长度={}, responseId={}",
+                result.getThinking() != null ? result.getThinking().length() : 0,
+                wrappedResult.responseId());
 
         log.debug("树搜索完成, 找到{}个相关节点, thinking长度={}, responseId={}",
                 result.getNodeList().size(),

@@ -1,9 +1,10 @@
 package io.github.xiaoailazy.coexistree.knowledge.service;
 
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
-import io.github.xiaoailazy.coexistree.indexer.llm.LlmResponseParser;
 import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
+import io.github.xiaoailazy.coexistree.indexer.llm.RetryableLlmService;
 import io.github.xiaoailazy.coexistree.indexer.summary.NodeSummaryService;
+import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
@@ -29,6 +30,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
@@ -53,7 +55,7 @@ class SystemKnowledgeTreeServiceImplTest {
     @Mock
     private LlmClient llmClient;
     @Mock
-    private LlmResponseParser llmResponseParser;
+    private RetryableLlmService retryableLlmService;
     @Mock
     private JsonUtils jsonUtils;
     @Mock
@@ -62,14 +64,19 @@ class SystemKnowledgeTreeServiceImplTest {
     private NodeSummaryService nodeSummaryService;
     @Mock
     private SnapshotService snapshotService;
+    @Mock
+    private AppStorageProperties storageProperties;
 
     private SystemKnowledgeTreeServiceImpl service;
 
     @BeforeEach
     void setUp() {
+        // Mock storageProperties to return a valid path
+        lenient().when(storageProperties.systemTreeRoot()).thenReturn("./data/system-trees");
+
         service = new SystemKnowledgeTreeServiceImpl(
                 repository, fileLoader, fileWriter, promptTemplateService,
-                llmClient, llmResponseParser, jsonUtils, null,
+                llmClient, retryableLlmService, jsonUtils, storageProperties,
                 processLogRepository, nodeSummaryService, snapshotService
         );
     }

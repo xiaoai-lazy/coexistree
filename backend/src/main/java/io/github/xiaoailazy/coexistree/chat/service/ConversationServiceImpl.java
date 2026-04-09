@@ -405,9 +405,10 @@ public class ConversationServiceImpl implements ConversationService {
             sendEvent(emitter, SseEvent.stage("load_document", "success"));
             sendEvent(emitter, SseEvent.stage("search", "running"));
 
-            // 将上轮的 lastResponseId 传入树搜索，携带对话上下文
+            // 树搜索是独立任务，不传递 previousResponseId（树搜索不需要对话上下文）
             TreeSearchResult result = treeSearchService.search(
-                    systemTree.getStructure(), question, null, conversation.getLastResponseId());
+                    systemTree.getStructure(), question, null, null);
+            // 注意：treeSearch 返回的 responseId 仅用于日志/debug，不参与对话串联
             String searchResponseId = result.getResponseId();
 
             List<TreeNode> relevantNodes = new ArrayList<>();
@@ -435,12 +436,17 @@ public class ConversationServiceImpl implements ConversationService {
             StringBuilder thinkingBuilder = new StringBuilder();
             String finalResponseId;
 
+            // 获取对话的 lastResponseId（用于多轮对话上下文串联）
+            // 第一轮: null, 第二轮及以后: 上一轮答案生成的 responseId
+            String previousResponseId = conversation.getLastResponseId();
+
             if (relevantNodes.isEmpty()) {
                 sendEvent(emitter, SseEvent.answer(FALLBACK_ANSWER));
                 answerBuilder.append(FALLBACK_ANSWER);
                 citations = List.of();
                 grounded = false;
-                finalResponseId = searchResponseId;
+                // 没有答案生成，所以 finalResponseId 保持为 null（或沿用之前的值）
+                finalResponseId = previousResponseId;
             } else {
                 sendEvent(emitter, SseEvent.stage("thinking", "running"));
 
@@ -453,8 +459,9 @@ public class ConversationServiceImpl implements ConversationService {
                     }
                 }
 
+                // 答案生成是多轮对话主体，需要传递 previousResponseId 维持上下文
                 finalResponseId = answerGenerationService.generateStream(
-                        question, relevantNodes, null, searchResponseId,
+                        question, relevantNodes, null, previousResponseId,
                         thinkingDelta -> {
                             thinkingBuilder.append(thinkingDelta);
                             try { sendEvent(emitter, SseEvent.thinking(thinkingDelta)); }

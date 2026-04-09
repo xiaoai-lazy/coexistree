@@ -32,7 +32,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-core': ['vue', 'vue-router', 'pinia'],
-          'vendor-ui': ['element-plus', '@element-plus/icons-vue']
+          'vendor-ui': ['element-plus', '@element-plus/icons-vue', 'vue-element-plus-x']
         }
       }
     }

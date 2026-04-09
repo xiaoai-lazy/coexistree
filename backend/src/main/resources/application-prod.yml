@@ -9,6 +9,10 @@ spring:
   application:
     name: coexistree
 
+  web:
+    resources:
+      static-locations: file:/app/static/,classpath:/static/
+
   datasource:
     url: ${DB_URL:jdbc:h2:file:${STORAGE_PATH:./data}/h2/coexistree;MODE=MySQL;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1}
     username: ${DB_USERNAME:sa}
@@ -70,3 +74,22 @@ admin:
   username: admin
   password: ${ADMIN_INITIAL_PASSWORD}
   display-name: 系统管理员
+
+# Actuator 健康检查配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: never
+      probes:
+        enabled: true
+    metrics:
+      access: read_only
+  simple:
+    metrics:
+      export:
+        enabled: false

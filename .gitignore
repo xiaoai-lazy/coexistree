@@ -51,5 +51,8 @@ backend/EOF
 .env.local
 .env.*.local
 
+# Nginx config (use nginx.conf.example as template)
+nginx/nginx.conf
+
 # Project local documentation
 CLAUDE.md

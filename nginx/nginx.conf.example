@@ -123,7 +123,20 @@ http {
         # 静态资源配置
         # ============================================
 
-        # 前端静态文件
+        # 带哈希值的静态资源 — 长效缓存 (1年，immutable)
+        location ~* ^/assets/ {
+            root /app/static;
+            add_header Cache-Control "public, max-age=31536000, immutable";
+            gzip_static on;
+        }
+
+        # index.html — 始终校验缓存
+        location = /index.html {
+            root /app/static;
+            add_header Cache-Control "no-cache";
+        }
+
+        # 其他请求 — SPA 路由 fallback
         location / {
             root /app/static;
             try_files $uri $uri/ /index.html;
@@ -181,6 +194,20 @@ http {
     #         proxy_read_timeout 60s;
     #     }
     #
+    #     # 带哈希值的静态资源 — 长效缓存 (1年，immutable)
+    #     location ~* ^/assets/ {
+    #         root /app/static;
+    #         add_header Cache-Control "public, max-age=31536000, immutable";
+    #         gzip_static on;
+    #     }
+    #
+    #     # index.html — 始终校验缓存
+    #     location = /index.html {
+    #         root /app/static;
+    #         add_header Cache-Control "no-cache";
+    #     }
+    #
+    #     # 其他请求 — SPA 路由 fallback
     #     location / {
     #         root /app/static;
     #         try_files $uri $uri/ /index.html;

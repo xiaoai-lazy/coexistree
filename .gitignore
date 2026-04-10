@@ -53,6 +53,7 @@ backend/EOF
 
 # Nginx config (use nginx.conf.example as template)
 nginx/nginx.conf
+nginx/ssl/
 
 # Project local documentation
 CLAUDE.md

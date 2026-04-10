@@ -7,6 +7,33 @@
 
 ---
 
+## [2.2.0] - 2026-04-10
+
+### 新增
+
+#### LLM 可靠性
+- LLM 响应校验与重试机制 (`LlmResponseValidator`, `RetryableLlmService`)
+- 多轮对话上下文串联支持
+
+#### 构建优化
+- Vite 手动 chunk 分割，拆分 vendor 和 UI 库
+- Gzip 压缩与打包分析器
+- Nginx 长缓存策略与 gzip_static 支持
+
+### 修复
+- 使用相对路径存储知识树文件，解决跨平台兼容问题 (`FilePathUtils`)
+- 同步 treeVersion 到内存模型，修复 DB 与文件版本不一致
+- 修正 `AuthenticationEntryPoint` 导入路径
+
+### 变更
+- Nginx 配置改为 gitignore 管理，不再纳入版本控制
+- 清理冗余前端依赖，迁移至 OpenAI SDK 兼容模式
+
+### 数据库迁移
+- 无
+
+---
+
 ## [2.0.0] - 2026-04-03
 
 ### 新增
@@ -91,23 +118,15 @@
 
 ## 迁移指南
 
-### 从 v1.0.0 升级到 v2.0.0
+### 从 v2.0.0 升级到 v2.2.0
 
-1. **环境变量**：新增以下配置
-   ```bash
-   ADMIN_INITIAL_PASSWORD=your-secure-password
-   JWT_SECRET=your-jwt-secret-at-least-32-characters
-   ```
-
-2. **数据库**：Flyway 会自动执行迁移脚本，无需手动操作
-
-3. **首次登录**：使用 admin 账号和配置的密码登录
-
-4. **权限配置**：
-   - 为现有系统添加 OWNER（默认为创建者）
-   - 为成员分配适当的角色和查看等级
+1. **Nginx 配置**：`nginx.conf` 已移出 git 跟踪，请复制 `nginx.conf.example` 为 `nginx.conf` 后自行修改
+2. **数据库**：无变更，Flyway 无需额外迁移
+3. **前端依赖**：建议删除 `node_modules` 和 `package-lock.json` 后重新 `npm install`
 
 ---
 
+[2.2.0]: https://github.com/xiaoailazy/coexistree/compare/v2.1.2...v2.2.0
+[2.1.2]: https://github.com/xiaoailazy/coexistree/compare/v2.1.0...v2.1.2
 [2.0.0]: https://github.com/xiaoailazy/coexistree/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/xiaoailazy/coexistree/releases/tag/v1.0.0

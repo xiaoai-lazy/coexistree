@@ -238,7 +238,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import http from '@/api/http'
 import { listSystems, createSystem, updateSystem, deleteSystem } from '@/api/system'
-import { ElMessage } from 'element-plus'
 import { confirmDelete as _confirmDelete } from '@/utils/dialog'
 
 // Systems data

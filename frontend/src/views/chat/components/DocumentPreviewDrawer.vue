@@ -52,7 +52,6 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { marked } from 'marked'
 import { getDocumentContent } from '@/api/document'
-import { ElMessage } from 'element-plus'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 
 const props = defineProps({

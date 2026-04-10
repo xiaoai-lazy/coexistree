@@ -13,14 +13,12 @@ import io.github.xiaoailazy.coexistree.knowledge.model.MergeInstruction;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemTreeStructure;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
-import io.github.xiaoailazy.coexistree.knowledge.repository.SystemTreeSnapshotRepository;
-import io.github.xiaoailazy.coexistree.knowledge.service.SnapshotService;
 import io.github.xiaoailazy.coexistree.knowledge.storage.SystemTreeFileLoader;
 import io.github.xiaoailazy.coexistree.knowledge.storage.SystemTreeFileWriter;
 import io.github.xiaoailazy.coexistree.knowledge.tree.SystemTreeNodeIdGenerator;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
-import io.github.xiaoailazy.coexistree.indexer.llm.LlmResponseParser;
 import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
+import io.github.xiaoailazy.coexistree.indexer.llm.RetryableLlmService;
 import io.github.xiaoailazy.coexistree.indexer.model.*;
 import io.github.xiaoailazy.coexistree.indexer.summary.NodeSummaryService;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
@@ -42,7 +40,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
     private final SystemTreeFileWriter systemTreeFileWriter;
     private final PromptTemplateService promptTemplateService;
     private final LlmClient llmClient;
-    private final LlmResponseParser llmResponseParser;
+    private final RetryableLlmService retryableLlmService;
     private final JsonUtils jsonUtils;
     private final AppStorageProperties storageProperties;
     private final ProcessLogRepository processLogRepository;
@@ -55,7 +53,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             SystemTreeFileWriter systemTreeFileWriter,
             PromptTemplateService promptTemplateService,
             LlmClient llmClient,
-            LlmResponseParser llmResponseParser,
+            RetryableLlmService retryableLlmService,
             JsonUtils jsonUtils,
             AppStorageProperties storageProperties,
             ProcessLogRepository processLogRepository,
@@ -66,7 +64,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         this.systemTreeFileWriter = systemTreeFileWriter;
         this.promptTemplateService = promptTemplateService;
         this.llmClient = llmClient;
-        this.llmResponseParser = llmResponseParser;
+        this.retryableLlmService = retryableLlmService;
         this.jsonUtils = jsonUtils;
         this.storageProperties = storageProperties;
         this.processLogRepository = processLogRepository;
@@ -82,22 +80,22 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         SystemKnowledgeTreeEntity entity = systemKnowledgeTreeRepository.findBySystemId(systemId)
                 .orElseThrow(() -> {
                     log.error("系统知识树不存在, systemId={}", systemId);
-                    return new BusinessException(ErrorCode.SYSTEM_TREE_NOT_FOUND, 
+                    return new BusinessException(ErrorCode.SYSTEM_TREE_NOT_FOUND,
                             "System knowledge tree not found for systemId: " + systemId);
                 });
 
         // 10.2.1.2 校验 tree_status=ACTIVE
         if (!"ACTIVE".equals(entity.getTreeStatus())) {
             log.error("系统知识树状态不为 ACTIVE, systemId={}, status={}", systemId, entity.getTreeStatus());
-            throw new BusinessException(ErrorCode.SYSTEM_TREE_NOT_READY, 
+            throw new BusinessException(ErrorCode.SYSTEM_TREE_NOT_READY,
                     "System knowledge tree is not ready, current status: " + entity.getTreeStatus());
         }
 
-        // 10.2.1.3 加载系统树 JSON 文件
-        Path treePath = Path.of(entity.getTreeFilePath());
+        // 10.2.1.3 加载系统树 JSON 文件（从相对路径解析）
+        Path treePath = FilePathUtils.resolveSystemTreePath(storageProperties.systemTreeRoot(), entity.getTreeFilePath());
         SystemKnowledgeTree tree = systemTreeFileLoader.load(treePath);
 
-        log.info("成功获取活跃系统知识树, systemId={}, treeVersion={}, nodeCount={}", 
+        log.info("成功获取活跃系统知识树, systemId={}, treeVersion={}, nodeCount={}",
                 systemId, entity.getTreeVersion(), entity.getNodeCount());
 
         return tree;
@@ -105,9 +103,9 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
 
     @Override
     public void mergeBaseline(Long documentId, DocumentTree docTree, SystemEntity system) {
-        log.info("开始基线合并, documentId={}, systemId={}, systemCode={}", 
+        log.info("开始基线合并, documentId={}, systemId={}, systemCode={}",
                 documentId, system.getId(), system.getSystemCode());
-        
+
         // 10.2.2.1 检查系统树是否已存在
         Optional<SystemKnowledgeTreeEntity> existingOpt = systemKnowledgeTreeRepository.findBySystemId(system.getId());
         if (existingOpt.isPresent() && "ACTIVE".equals(existingOpt.get().getTreeStatus())) {
@@ -115,30 +113,28 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             mergeChange(documentId, docTree, system);
             return;
         }
-        
+
         LocalDateTime now = LocalDateTime.now();
-        
+
         try {
             // 10.2.2.2 准备 LLM 输入（提取文档树结构）
             log.debug("提取文档树结构用于 LLM 输入");
             String docTreeJson = extractStructureForLlm(docTree.getStructure());
             String prompt = promptTemplateService.buildBaselinePrompt(
-                    system.getSystemName(), 
-                    system.getSystemCode(), 
+                    system.getSystemName(),
+                    system.getSystemCode(),
                     docTreeJson
             );
-            
-            // 10.2.2.3 调用 LLM 生成系统树结构
+
+            // 10.2.2.3 调用 LLM 生成系统树结构（带重试）
             log.debug("调用 LLM 生成系统树结构");
-            LlmClient.LlmResponse response = llmClient.chat(prompt, null, 0.0);
-            
+            SystemTreeStructure llmOutput = retryableLlmService.generateSystemTreeStructure(prompt, null, 0.0);
+
             // 记录 LLM 响应日志
-            saveProcessLog(documentId, "BASELINE_MERGE_LLM_RESPONSE", "SUCCESS", 
-                    "LLM response: " + response.content());
-            
-            SystemTreeStructure llmOutput = llmResponseParser.parseSystemTreeStructure(response.content());
+            saveProcessLog(documentId, "BASELINE_MERGE_LLM_RESPONSE", "SUCCESS",
+                    "LLM generated structure with " + llmOutput.getStructure().size() + " root nodes");
             log.info("LLM 生成系统树结构成功, 根节点数={}", llmOutput.getStructure().size());
-            
+
             // 10.2.2.4 转换 LLM 输出为 TreeNode（分配 nodeId、设置 sources、创建 provenance）
             log.debug("转换 LLM 输出为 TreeNode");
             SystemTreeNodeIdGenerator idGen = new SystemTreeNodeIdGenerator(system.getSystemCode());
@@ -149,7 +145,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
                     idGen,
                     now
             );
-            
+
             // 构建 SystemKnowledgeTree
             SystemKnowledgeTree systemTree = new SystemKnowledgeTree();
             systemTree.setSystemId(system.getId());
@@ -160,20 +156,20 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             systemTree.setCreatedAt(now);
             systemTree.setLastUpdatedAt(now);
             systemTree.setStructure(systemNodes);
-            
+
             // 10.2.2.5 写入系统树 JSON 文件
             Path treePath = FilePathUtils.systemTreePath(
-                    storageProperties.systemTreeRoot(), 
+                    storageProperties.systemTreeRoot(),
                     system.getSystemCode()
             );
             log.debug("写入系统树文件, path={}", treePath);
             systemTreeFileWriter.write(treePath, systemTree);
-            
+
             // 10.2.2.6 保存 system_knowledge_trees 记录
             int nodeCount = countNodes(systemNodes);
             SystemKnowledgeTreeEntity entity = new SystemKnowledgeTreeEntity();
             entity.setSystemId(system.getId());
-            entity.setTreeFilePath(treePath.toString());
+            entity.setTreeFilePath(FilePathUtils.getRelativeSystemTreePath(system.getSystemCode()));
             entity.setTreeVersion(1);
             entity.setDescription(llmOutput.getSystemDescription());
             entity.setNodeCount(nodeCount);
@@ -181,7 +177,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             entity.setCreatedAt(now);
             entity.setUpdatedAt(now);
             systemKnowledgeTreeRepository.save(entity);
-            
+
             // 10.2.2.7 记录处理日志
             saveProcessLog(documentId, "BASELINE_MERGE_COMPLETED", "SUCCESS",
                     String.format("System tree created, version=1, nodeCount=%d", nodeCount));
@@ -191,45 +187,43 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
 
             log.info("基线合并完成, systemId={}, treeVersion=1, nodeCount={}",
                     system.getId(), nodeCount);
-            
+
         } catch (Exception e) {
             log.error("基线合并失败, documentId={}, systemId={}", documentId, system.getId(), e);
-            saveProcessLog(documentId, "BASELINE_MERGE_FAILED", "FAILED", 
+            saveProcessLog(documentId, "BASELINE_MERGE_FAILED", "FAILED",
                     "Error: " + e.getMessage());
-            throw new BusinessException(ErrorCode.SYSTEM_TREE_WRITE_FAILED, 
+            throw new BusinessException(ErrorCode.SYSTEM_TREE_WRITE_FAILED,
                     "Failed to merge baseline: " + e.getMessage());
         }
     }
 
     @Override
     public void mergeChange(Long documentId, DocumentTree docTree, SystemEntity system) {
-        log.info("开始变更合并, documentId={}, systemId={}, systemCode={}", 
+        log.info("开始变更合并, documentId={}, systemId={}, systemCode={}",
                 documentId, system.getId(), system.getSystemCode());
-        
+
         LocalDateTime now = LocalDateTime.now();
-        
+
         try {
             // 10.2.3.1 加载现有系统树
             log.debug("加载现有系统树, systemId={}", system.getId());
             SystemKnowledgeTree systemTree = getActiveTree(system.getId());
-            
+
             // 10.2.3.2 准备 LLM 输入（系统树结构 + 文档树结构）
             log.debug("准备 LLM 输入");
             String systemTreeJson = extractStructureForLlm(systemTree.getStructure());
             String docTreeJson = extractStructureForLlm(docTree.getStructure());
             String prompt = promptTemplateService.buildMergePrompt(systemTreeJson, docTreeJson);
-            
-            // 10.2.3.3 调用 LLM 生成合并指令
+
+            // 10.2.3.3 调用 LLM 生成合并指令（带重试）
             log.debug("调用 LLM 生成合并指令");
-            LlmClient.LlmResponse response = llmClient.chat(prompt, null, 0.0);
-            
+            List<MergeInstruction> instructions = retryableLlmService.generateMergeInstructions(prompt, null, 0.0);
+
             // 记录 LLM 响应日志
-            saveProcessLog(documentId, "CHANGE_MERGE_LLM_RESPONSE", "SUCCESS", 
-                    "LLM response: " + response.content());
-            
-            List<MergeInstruction> instructions = llmResponseParser.parseMergeInstructions(response.content());
+            saveProcessLog(documentId, "CHANGE_MERGE_LLM_RESPONSE", "SUCCESS",
+                    "LLM generated " + instructions.size() + " merge instructions");
             log.info("LLM 生成合并指令成功, 指令数={}", instructions.size());
-            
+
             // 10.2.3.4 执行合并指令（UPDATE/CREATE）
             log.debug("执行合并指令");
             SystemTreeNodeIdGenerator idGen = new SystemTreeNodeIdGenerator(system.getSystemCode());
@@ -249,31 +243,34 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             // 10.2.3.4.5 第二步：生成内容和变更记录
             log.debug("执行第二步：生成内容和变更记录");
             generateContentAndChangeLog(systemTree, docTree, documentId, now);
-            
+
             // 更新系统树的 lastUpdatedAt
             systemTree.setLastUpdatedAt(now);
-            
-            // 10.2.3.5 原子写入系统树 JSON 文件
+
+            // 10.2.3.5 计算新版本号并同步到内存模型
+            SystemKnowledgeTreeEntity entity = systemKnowledgeTreeRepository.findBySystemId(system.getId())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_TREE_NOT_FOUND,
+                            "System tree entity not found"));
+
+            int newVersion = entity.getTreeVersion() + 1;
+            int newNodeCount = countNodes(systemTree.getStructure());
+            systemTree.setTreeVersion(newVersion);
+            entity.setTreeVersion(newVersion);
+            entity.setNodeCount(newNodeCount);
+            entity.setUpdatedAt(now);
+
+            // 10.2.3.6 原子写入系统树 JSON 文件
             Path treePath = FilePathUtils.systemTreePath(
-                    storageProperties.systemTreeRoot(), 
+                    storageProperties.systemTreeRoot(),
                     system.getSystemCode()
             );
             log.debug("原子写入系统树文件, path={}", treePath);
             systemTreeFileWriter.write(treePath, systemTree);
-            
-            // 10.2.3.6 更新 system_knowledge_trees.tree_version +1
-            SystemKnowledgeTreeEntity entity = systemKnowledgeTreeRepository.findBySystemId(system.getId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.SYSTEM_TREE_NOT_FOUND, 
-                            "System tree entity not found"));
-            
-            int newVersion = entity.getTreeVersion() + 1;
-            int newNodeCount = countNodes(systemTree.getStructure());
-            entity.setTreeVersion(newVersion);
-            entity.setNodeCount(newNodeCount);
-            entity.setUpdatedAt(now);
+
+            // 10.2.3.7 更新数据库记录
             systemKnowledgeTreeRepository.save(entity);
-            
-            // 10.2.3.7 记录处理日志
+
+            // 10.2.3.8 记录处理日志
             saveProcessLog(documentId, "CHANGE_MERGE_COMPLETED", "SUCCESS",
                     String.format("System tree updated, version=%d, nodeCount=%d, instructions=%d",
                             newVersion, newNodeCount, instructions.size()));
@@ -283,16 +280,16 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
 
             log.info("变更合并完成, systemId={}, treeVersion={}, nodeCount={}, instructions={}",
                     system.getId(), newVersion, newNodeCount, instructions.size());
-            
+
         } catch (Exception e) {
             log.error("变更合并失败, documentId={}, systemId={}", documentId, system.getId(), e);
-            saveProcessLog(documentId, "CHANGE_MERGE_FAILED", "FAILED", 
+            saveProcessLog(documentId, "CHANGE_MERGE_FAILED", "FAILED",
                     "Error: " + e.getMessage());
-            throw new BusinessException(ErrorCode.SYSTEM_TREE_WRITE_FAILED, 
+            throw new BusinessException(ErrorCode.SYSTEM_TREE_WRITE_FAILED,
                     "Failed to merge change: " + e.getMessage());
         }
     }
-    
+
     /**
      * 提取文档树结构用于 LLM 输入
      * 只保留 nodeId, title, summary/prefixSummary 字段
@@ -301,7 +298,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         List<SimplifiedTreeNode> simplified = simplifyNodes(nodes);
         return jsonUtils.toJson(simplified);
     }
-    
+
     /**
      * 简化树节点，只保留 LLM 需要的字段
      */
@@ -320,7 +317,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         }
         return result;
     }
-    
+
     /**
      * 转换 LLM 输出为 TreeNode
      */
@@ -407,7 +404,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         }
         return result;
     }
-    
+
     /**
      * 统计节点总数（递归）
      */
@@ -421,7 +418,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         }
         return count;
     }
-    
+
     /**
      * 查找系统树中最大的节点序号
      */
@@ -443,7 +440,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         }
         return max;
     }
-    
+
     /**
      * 在树中查找指定 ID 的节点（递归）
      */
@@ -461,7 +458,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         }
         return null;
     }
-    
+
     /**
      * 执行 UPDATE 操作（第一步：结构变更）
      */
@@ -502,7 +499,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
 
         log.debug("UPDATE 操作完成, targetNodeId={}", instruction.getTargetNodeId());
     }
-    
+
     /**
      * 执行 CREATE 操作（第一步：结构变更）
      */
@@ -734,7 +731,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             log.error("保存处理日志失败, documentId={}, stage={}", documentId, stage, e);
         }
     }
-    
+
     /**
      * 基线合并：整合多来源内容为单一文本
      * 用于 LLM 返回的节点有多个 sourceNodeIds 的情况

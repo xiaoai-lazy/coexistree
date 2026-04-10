@@ -122,7 +122,6 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { ElMessage } from 'element-plus'
 import { confirm } from '@/utils/dialog'
 import { listAllSystems, transferSystemOwnership } from '@/api/admin'
 import { listMembers } from '@/api/member'

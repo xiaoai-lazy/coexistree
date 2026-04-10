@@ -187,7 +187,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Plus, UserFilled } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
 import { confirmDelete } from '@/utils/dialog'
 import { listUsers, createUser, updateUser, deleteUser, resetPassword } from '@/api/admin'
 

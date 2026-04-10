@@ -5,13 +5,15 @@ import com.openai.client.okhttp.OpenAIOkHttpClient;
 import com.openai.core.http.StreamResponse;
 import com.openai.models.responses.Response;
 import com.openai.models.responses.ResponseCreateParams;
+import com.openai.models.responses.ResponseOutputItem;
+import com.openai.models.responses.ResponseOutputMessage;
+import com.openai.models.responses.ResponseOutputText;
 import com.openai.models.responses.ResponseStreamEvent;
 import io.github.xiaoailazy.coexistree.config.LlmProperties;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -61,12 +63,12 @@ public class LlmClient {
             long elapsed = System.currentTimeMillis() - startTime;
 
             String content = response.output().stream()
-                    .filter(item -> item.isMessage())
+                    .filter(ResponseOutputItem::isMessage)
                     .flatMap(item -> item.message().map(List::of).orElseGet(List::of).stream())
                     .flatMap(msg -> msg.content().stream())
-                    .filter(contentItem -> contentItem.isOutputText())
+                    .filter(ResponseOutputMessage.Content::isOutputText)
                     .flatMap(contentItem -> contentItem.outputText().map(List::of).orElseGet(List::of).stream())
-                    .map(outputText -> outputText.text())
+                    .map(ResponseOutputText::text)
                     .findFirst()
                     .orElse("");
 
@@ -114,12 +116,18 @@ public class LlmClient {
                             onText.accept(text);
                         }
                     }
+                    // Process response completed event to extract responseId
+                    else if (event.isCompleted()) {
+                        Response completedResponse = event.asCompleted().response();
+                        responseIdHolder[0] = completedResponse.id();
+                        log.debug("Extracted responseId from stream completion: {}", responseIdHolder[0]);
+                    }
                 });
             }
 
             long elapsed = System.currentTimeMillis() - startTime;
-            log.debug("LLM stream completed, elapsed={}ms, textLength={}",
-                    elapsed, textBuilder.length());
+            log.debug("LLM stream completed, elapsed={}ms, textLength={}, responseId={}",
+                    elapsed, textBuilder.length(), responseIdHolder[0]);
 
             return responseIdHolder[0];
 

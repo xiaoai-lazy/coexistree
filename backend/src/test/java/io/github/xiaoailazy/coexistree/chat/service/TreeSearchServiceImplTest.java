@@ -1,8 +1,6 @@
 package io.github.xiaoailazy.coexistree.chat.service;
 
-import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
-import io.github.xiaoailazy.coexistree.indexer.llm.LlmResponseParser;
-import io.github.xiaoailazy.coexistree.shared.test.LlmMockFactory;
+import io.github.xiaoailazy.coexistree.indexer.llm.RetryableLlmService;
 import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeSearchResult;
@@ -25,9 +23,7 @@ class TreeSearchServiceImplTest {
     @Mock
     private PromptTemplateService promptTemplateService;
     @Mock
-    private LlmClient llmClient;
-    @Mock
-    private LlmResponseParser llmResponseParser;
+    private RetryableLlmService retryableLlmService;
     @Mock
     private TreeSanitizer treeSanitizer;
 
@@ -37,8 +33,7 @@ class TreeSearchServiceImplTest {
     void setUp() {
         treeSearchService = new TreeSearchServiceImpl(
                 promptTemplateService,
-                llmClient,
-                llmResponseParser,
+                retryableLlmService,
                 treeSanitizer
         );
     }
@@ -51,7 +46,6 @@ class TreeSearchServiceImplTest {
         List<TreeNode> structure = List.of(node1, node2);
         String query = "测试查询";
         String model = "test-model";
-        String previousResponseId = "prev_123";
 
         List<TreeNode> sanitizedStructure = List.of(
                 createTreeNode("1", "标题1", null),
@@ -59,18 +53,18 @@ class TreeSearchServiceImplTest {
         );
 
         String prompt = "生成的prompt";
-        String llmResponse = "[1,2]";
         TreeSearchResult expectedResult = new TreeSearchResult();
         expectedResult.setNodeList(List.of("1", "2"));
         expectedResult.setThinking("思考过程");
+        expectedResult.setResponseId("resp_456");
 
         when(treeSanitizer.removeText(structure)).thenReturn(sanitizedStructure);
         when(promptTemplateService.buildTreeSearchPrompt(query, sanitizedStructure)).thenReturn(prompt);
-        LlmMockFactory.mockChat(llmClient, llmResponse, "resp_456");
-        when(llmResponseParser.parseTreeSearch(llmResponse)).thenReturn(expectedResult);
+        when(retryableLlmService.treeSearchWithResponseId(prompt, model, 0.0))
+            .thenReturn(new RetryableLlmService.TreeSearchResultWithResponseId(expectedResult, "resp_456"));
 
         // When
-        TreeSearchResult result = treeSearchService.search(structure, query, model, previousResponseId);
+        TreeSearchResult result = treeSearchService.search(structure, query, model, null);
 
         // Then
         assertThat(result).isNotNull();
@@ -89,14 +83,13 @@ class TreeSearchServiceImplTest {
         List<TreeNode> sanitizedStructure = List.of(createTreeNode("1", "标题", null));
 
         String prompt = "prompt";
-        String llmResponse = "[1]";
         TreeSearchResult expectedResult = new TreeSearchResult();
         expectedResult.setNodeList(List.of("1"));
 
         when(treeSanitizer.removeText(structure)).thenReturn(sanitizedStructure);
         when(promptTemplateService.buildTreeSearchPrompt(query, sanitizedStructure)).thenReturn(prompt);
-        LlmMockFactory.mockChat(llmClient, llmResponse, null);
-        when(llmResponseParser.parseTreeSearch(llmResponse)).thenReturn(expectedResult);
+        when(retryableLlmService.treeSearchWithResponseId(prompt, null, 0.0))
+            .thenReturn(new RetryableLlmService.TreeSearchResultWithResponseId(expectedResult, null));
 
         // When
         TreeSearchResult result = treeSearchService.search(structure, query, null);
@@ -115,14 +108,13 @@ class TreeSearchServiceImplTest {
         List<TreeNode> sanitizedStructure = List.of();
 
         String prompt = "prompt";
-        String llmResponse = "[]";
         TreeSearchResult expectedResult = new TreeSearchResult();
         expectedResult.setNodeList(List.of());
 
         when(treeSanitizer.removeText(structure)).thenReturn(sanitizedStructure);
         when(promptTemplateService.buildTreeSearchPrompt(query, sanitizedStructure)).thenReturn(prompt);
-        LlmMockFactory.mockChat(llmClient, llmResponse, null);
-        when(llmResponseParser.parseTreeSearch(llmResponse)).thenReturn(expectedResult);
+        when(retryableLlmService.treeSearchWithResponseId(prompt, null, 0.0))
+            .thenReturn(new RetryableLlmService.TreeSearchResultWithResponseId(expectedResult, null));
 
         // When
         TreeSearchResult result = treeSearchService.search(structure, query, null);
@@ -144,14 +136,13 @@ class TreeSearchServiceImplTest {
         List<TreeNode> sanitizedStructure = List.of(sanitizedParent);
 
         String prompt = "prompt";
-        String llmResponse = "[1,1.1]";
         TreeSearchResult expectedResult = new TreeSearchResult();
         expectedResult.setNodeList(List.of("1", "1.1"));
 
         when(treeSanitizer.removeText(structure)).thenReturn(sanitizedStructure);
         when(promptTemplateService.buildTreeSearchPrompt(anyString(), anyList())).thenReturn(prompt);
-        LlmMockFactory.mockChat(llmClient, llmResponse, null);
-        when(llmResponseParser.parseTreeSearch(llmResponse)).thenReturn(expectedResult);
+        when(retryableLlmService.treeSearchWithResponseId(anyString(), any(), anyDouble()))
+            .thenReturn(new RetryableLlmService.TreeSearchResultWithResponseId(expectedResult, null));
 
         // When
         TreeSearchResult result = treeSearchService.search(structure, "查询", null);

@@ -86,7 +86,6 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { Document, Close, Paperclip, Promotion, Upload } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
 
 const props = defineProps({
   modelValue: {

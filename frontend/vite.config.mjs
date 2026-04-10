@@ -3,10 +3,19 @@ import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import compression from 'vite-plugin-compression'
 import { visualizer } from 'rollup-plugin-visualizer'
+import AutoImport from 'unplugin-auto-import/vite'
+import Components from 'unplugin-vue-components/vite'
+import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
 export default defineConfig({
   plugins: [
     vue(),
+    AutoImport({
+      resolvers: [ElementPlusResolver()]
+    }),
+    Components({
+      resolvers: [ElementPlusResolver()]
+    }),
     compression({ algorithm: 'gzip', ext: '.gz', threshold: 10240 }),
     visualizer({ open: false, filename: 'dist/stats.html', gzipSize: true })
   ],
@@ -31,8 +40,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-core': ['vue', 'vue-router', 'pinia'],
-          'vendor-ui': ['element-plus', '@element-plus/icons-vue', 'vue-element-plus-x']
+          'vendor-core': ['vue', 'vue-router', 'pinia']
         }
       }
     }

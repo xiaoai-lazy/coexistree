@@ -78,7 +78,6 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue'
-import { ElMessage } from 'element-plus'
 import { confirmDelete } from '@/utils/dialog'
 import { listMembers, addMember, removeMember, updateViewLevel } from '@/api/member'
 import { useAuthStore } from '@/stores/auth'

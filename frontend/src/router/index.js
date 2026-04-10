@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import AppLayout from '@/layout/AppLayout.vue'
 import LoginView from '@/views/login/LoginView.vue'
+import LandingView from '@/views/landing/LandingView.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const routes = [
@@ -12,8 +13,14 @@ const routes = [
   },
   {
     path: '/',
+    name: 'Landing',
+    component: LandingView,
+    meta: { public: true }
+  },
+  {
+    path: '/app',
     component: AppLayout,
-    redirect: '/document',
+    redirect: '/app/chat',
     children: [
       {
         path: 'document',
@@ -43,18 +50,28 @@ router.beforeEach((to, from, next) => {
   const userStr = localStorage.getItem('user')
   const user = userStr ? JSON.parse(userStr) : null
 
+  // Unauthenticated users trying to access protected routes -> login
   if (!to.meta.public && !token) {
     next('/login')
     return
   }
 
+  // Authenticated users trying to access login -> go to app
   if (to.path === '/login' && token) {
-    next('/')
+    next('/app/chat')
     return
   }
 
+  // Unauthenticated users on home -> stay on landing (it's public)
+  // Authenticated users on home -> redirect to app
+  if (to.path === '/' && token) {
+    next('/app/chat')
+    return
+  }
+
+  // Admin check
   if (to.meta.requiresAdmin && user?.role !== 'SUPER_ADMIN') {
-    next('/')
+    next('/app/chat')
     return
   }
 

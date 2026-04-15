@@ -14,7 +14,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -58,7 +57,7 @@ class SystemControllerTest {
     @WithMockUser(username = "testuser", roles = {"USER"})
     void testCreateSystem() throws Exception {
         // Given
-        CreateSystemRequest request = new CreateSystemRequest("newsys", "新系统", "系统描述");
+    
         SystemResponse response = createSystemResponse(1L, "newsys", "新系统");
 
         when(systemService.create(any(CreateSystemRequest.class), any())).thenReturn(response);

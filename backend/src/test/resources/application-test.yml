@@ -21,6 +21,7 @@ spring:
     show-sql: true
   flyway:
     enabled: false  # Disable Flyway for tests to use ddl-auto
+    validate-on-migrate: false
 
 logging:
   level:

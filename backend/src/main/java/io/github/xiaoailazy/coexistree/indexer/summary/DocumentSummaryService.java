@@ -3,6 +3,7 @@ package io.github.xiaoailazy.coexistree.indexer.summary;
 import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
+import io.github.xiaoailazy.coexistree.shared.util.LlmCallContext;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -27,6 +28,11 @@ public class DocumentSummaryService {
 
                 Directly return the description, do not include any other text.
                 """.formatted(jsonUtils.toJson(structure));
-        return llmClient.chat(prompt, model, 0.0).content();
+        LlmCallContext.set("DOCUMENT_SUMMARY", null, null, null);
+        try {
+            return llmClient.chat(prompt, model, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 }

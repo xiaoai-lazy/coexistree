@@ -1,7 +1,5 @@
 package io.github.xiaoailazy.coexistree.chat.dto;
 
-import io.github.xiaoailazy.coexistree.review.enums.EvaluationCategory;
-import io.github.xiaoailazy.coexistree.review.enums.RiskLevel;
 import io.github.xiaoailazy.coexistree.review.model.EvaluationReport;
 
 import java.util.List;

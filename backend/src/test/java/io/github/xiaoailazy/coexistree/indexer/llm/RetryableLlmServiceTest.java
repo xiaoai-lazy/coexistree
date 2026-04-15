@@ -49,7 +49,7 @@ class RetryableLlmServiceTest {
         expectedResult.setNodeList(List.of());
 
         when(llmClient.chat(eq(prompt), any(), anyDouble()))
-            .thenReturn(new LlmClient.LlmResponse("resp_1", validResponse));
+            .thenReturn(new LlmClient.LlmResponse("resp_1", validResponse, null));
         when(validator.validateTreeSearch(validResponse))
             .thenReturn(LlmResponseValidator.ValidationResult.success());
         when(llmResponseParser.parseTreeSearch(validResponse))
@@ -70,8 +70,8 @@ class RetryableLlmServiceTest {
         expectedResult.setThinking("test");
 
         when(llmClient.chat(any(), any(), anyDouble()))
-            .thenReturn(new LlmClient.LlmResponse("resp_1", invalidResponse))
-            .thenReturn(new LlmClient.LlmResponse("resp_2", validResponse));
+            .thenReturn(new LlmClient.LlmResponse("resp_1", invalidResponse, null))
+            .thenReturn(new LlmClient.LlmResponse("resp_2", validResponse, null));
 
         when(validator.validateTreeSearch(invalidResponse))
             .thenReturn(LlmResponseValidator.ValidationResult.failure("Invalid JSON", null));
@@ -93,7 +93,7 @@ class RetryableLlmServiceTest {
         String invalidResponse = "invalid json";
 
         when(llmClient.chat(any(), any(), anyDouble()))
-            .thenReturn(new LlmClient.LlmResponse("resp_1", invalidResponse));
+            .thenReturn(new LlmClient.LlmResponse("resp_1", invalidResponse, null));
 
         when(validator.validateTreeSearch(anyString()))
             .thenReturn(LlmResponseValidator.ValidationResult.failure("Invalid JSON", null));
@@ -113,7 +113,7 @@ class RetryableLlmServiceTest {
         expectedResult.setStructure(List.of());
 
         when(llmClient.chat(eq(prompt), any(), anyDouble()))
-            .thenReturn(new LlmClient.LlmResponse("resp_1", validResponse));
+            .thenReturn(new LlmClient.LlmResponse("resp_1", validResponse, null));
         when(validator.validateSystemTreeStructure(validResponse))
             .thenReturn(LlmResponseValidator.ValidationResult.success());
         when(llmResponseParser.parseSystemTreeStructure(validResponse))
@@ -135,7 +135,7 @@ class RetryableLlmServiceTest {
         instruction.setSourceNodeId("2");
 
         when(llmClient.chat(eq(prompt), any(), anyDouble()))
-            .thenReturn(new LlmClient.LlmResponse("resp_1", validResponse));
+            .thenReturn(new LlmClient.LlmResponse("resp_1", validResponse, null));
         when(validator.validateMergeInstructions(validResponse))
             .thenReturn(LlmResponseValidator.ValidationResult.success());
         when(llmResponseParser.parseMergeInstructions(validResponse))
@@ -153,8 +153,8 @@ class RetryableLlmServiceTest {
         String validResponse = "{\"thinking\": \"test\", \"node_list\": []}";
 
         when(llmClient.chat(any(), any(), anyDouble()))
-            .thenReturn(new LlmClient.LlmResponse("resp_1", validResponse))
-            .thenReturn(new LlmClient.LlmResponse("resp_2", validResponse));
+            .thenReturn(new LlmClient.LlmResponse("resp_1", validResponse, null))
+            .thenReturn(new LlmClient.LlmResponse("resp_2", validResponse, null));
 
         when(validator.validateTreeSearch(validResponse))
             .thenReturn(LlmResponseValidator.ValidationResult.success());
@@ -177,7 +177,7 @@ class RetryableLlmServiceTest {
         expectedResult.setThinking("test");
 
         when(llmClient.chat(eq(prompt), any(), anyDouble()))
-            .thenReturn(new LlmClient.LlmResponse("resp_123", validResponse));
+            .thenReturn(new LlmClient.LlmResponse("resp_123", validResponse, null));
         when(validator.validateTreeSearch(validResponse))
             .thenReturn(LlmResponseValidator.ValidationResult.success());
         when(llmResponseParser.parseTreeSearch(validResponse))
@@ -195,7 +195,7 @@ class RetryableLlmServiceTest {
         String prompt = "test prompt";
 
         when(llmClient.chat(any(), any(), anyDouble()))
-            .thenReturn(new LlmClient.LlmResponse("resp_1", ""));
+            .thenReturn(new LlmClient.LlmResponse("resp_1", "", null));
 
         assertThatThrownBy(() -> retryableLlmService.treeSearch(prompt, null, 0.0))
             .isInstanceOf(RetryableLlmService.LlmRetryExhaustedException.class);

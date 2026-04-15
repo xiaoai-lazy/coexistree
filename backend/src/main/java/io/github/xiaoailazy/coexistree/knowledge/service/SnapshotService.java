@@ -4,7 +4,6 @@ import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemTreeSnapshotEntity;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemTreeSnapshotRepository;
-import io.github.xiaoailazy.coexistree.knowledge.storage.SystemTreeFileLoader;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,14 +23,12 @@ public class SnapshotService {
     private static final DateTimeFormatter SNAPSHOT_NAME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm");
 
     private final SystemTreeSnapshotRepository snapshotRepository;
-    private final SystemTreeFileLoader treeFileLoader;
+
     private final JsonUtils jsonUtils;
 
     public SnapshotService(SystemTreeSnapshotRepository snapshotRepository,
-                       SystemTreeFileLoader treeFileLoader,
                        JsonUtils jsonUtils) {
         this.snapshotRepository = snapshotRepository;
-        this.treeFileLoader = treeFileLoader;
         this.jsonUtils = jsonUtils;
     }
 

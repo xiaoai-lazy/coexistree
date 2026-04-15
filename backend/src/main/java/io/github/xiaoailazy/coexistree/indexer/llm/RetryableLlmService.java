@@ -3,6 +3,7 @@ package io.github.xiaoailazy.coexistree.indexer.llm;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeSearchResult;
 import io.github.xiaoailazy.coexistree.knowledge.model.MergeInstruction;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemTreeStructure;
+import io.github.xiaoailazy.coexistree.shared.util.LlmCallContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -118,60 +119,80 @@ public class RetryableLlmService {
      * 树搜索 - 带重试
      */
     public TreeSearchResult treeSearch(String prompt, String model, Double temperature) {
-        return executeWithRetry(
-            prompt,
-            model,
-            temperature,
-            validator::validateTreeSearch,
-            llmResponseParser::parseTreeSearch,
-            TREE_SEARCH_SCHEMA_HINT
-        );
+        LlmCallContext.set("TREE_SEARCH", null, null, null);
+        try {
+            return executeWithRetry(
+                prompt,
+                model,
+                temperature,
+                validator::validateTreeSearch,
+                llmResponseParser::parseTreeSearch,
+                TREE_SEARCH_SCHEMA_HINT
+            );
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
      * 基线合并 - 带重试
      */
     public SystemTreeStructure generateSystemTreeStructure(String prompt, String model, Double temperature) {
-        return executeWithRetry(
-            prompt,
-            model,
-            temperature,
-            validator::validateSystemTreeStructure,
-            llmResponseParser::parseSystemTreeStructure,
-            SYSTEM_TREE_SCHEMA_HINT
-        );
+        LlmCallContext.set("BASELINE_MERGE", null, null, null);
+        try {
+            return executeWithRetry(
+                prompt,
+                model,
+                temperature,
+                validator::validateSystemTreeStructure,
+                llmResponseParser::parseSystemTreeStructure,
+                SYSTEM_TREE_SCHEMA_HINT
+            );
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
      * 变更合并 - 带重试
      */
     public List<MergeInstruction> generateMergeInstructions(String prompt, String model, Double temperature) {
-        return executeWithRetry(
-            prompt,
-            model,
-            temperature,
-            validator::validateMergeInstructions,
-            llmResponseParser::parseMergeInstructions,
-            MERGE_INSTRUCTIONS_SCHEMA_HINT
-        );
+        LlmCallContext.set("CHANGE_MERGE", null, null, null);
+        try {
+            return executeWithRetry(
+                prompt,
+                model,
+                temperature,
+                validator::validateMergeInstructions,
+                llmResponseParser::parseMergeInstructions,
+                MERGE_INSTRUCTIONS_SCHEMA_HINT
+            );
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
      * 带 ResponseId 返回的树搜索 - 带重试
      */
     public TreeSearchResultWithResponseId treeSearchWithResponseId(String prompt, String model, Double temperature) {
-        return executeWithRetryAndResponseId(
-            prompt,
-            model,
-            temperature,
-            validator::validateTreeSearch,
-            (content, responseId) -> {
-                TreeSearchResult result = llmResponseParser.parseTreeSearch(content);
-                result.setResponseId(responseId);
-                return new TreeSearchResultWithResponseId(result, responseId);
-            },
-            TREE_SEARCH_SCHEMA_HINT
-        );
+        LlmCallContext.set("TREE_SEARCH", null, null, null);
+        try {
+            return executeWithRetryAndResponseId(
+                prompt,
+                model,
+                temperature,
+                validator::validateTreeSearch,
+                (content, responseId) -> {
+                    TreeSearchResult result = llmResponseParser.parseTreeSearch(content);
+                    result.setResponseId(responseId);
+                    return new TreeSearchResultWithResponseId(result, responseId);
+                },
+                TREE_SEARCH_SCHEMA_HINT
+            );
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**

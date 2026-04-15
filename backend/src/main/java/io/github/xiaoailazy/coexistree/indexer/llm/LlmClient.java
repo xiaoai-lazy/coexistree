@@ -9,6 +9,7 @@ import com.openai.models.responses.ResponseOutputItem;
 import com.openai.models.responses.ResponseOutputMessage;
 import com.openai.models.responses.ResponseOutputText;
 import com.openai.models.responses.ResponseStreamEvent;
+import com.openai.models.responses.ResponseUsage;
 import io.github.xiaoailazy.coexistree.config.LlmProperties;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -72,13 +73,31 @@ public class LlmClient {
                     .findFirst()
                     .orElse("");
 
+            LlmResponse.Usage usage = extractUsage(response);
+
             log.debug("LLM chat completed, elapsed={}ms, responseLength={}", elapsed, content.length());
-            return new LlmResponse(response.id(), content);
+            return new LlmResponse(response.id(), content, usage);
 
         } catch (Exception e) {
             log.error("LLM chat failed", e);
-            return new LlmResponse(null, "Error: " + e.getMessage());
+            return new LlmResponse(null, "Error: " + e.getMessage(), null);
         }
+    }
+
+    private LlmResponse.Usage extractUsage(Response response) {
+        return response.usage().map(u -> {
+            long reasoning = 0;
+            ResponseUsage.OutputTokensDetails details = u.outputTokensDetails();
+            if (details != null) {
+                reasoning = details.reasoningTokens();
+            }
+            return new LlmResponse.Usage(
+                    u.inputTokens(),
+                    u.outputTokens(),
+                    u.totalTokens(),
+                    reasoning
+            );
+        }).orElse(null);
     }
 
     public String chatStream(String prompt, String model, Double temperature,
@@ -154,5 +173,7 @@ public class LlmClient {
         return (model != null && !model.isBlank()) ? model : llmProperties.getModel();
     }
 
-    public record LlmResponse(String responseId, String content) {}
+    public record LlmResponse(String responseId, String content, Usage usage) {
+        public record Usage(long inputTokens, long outputTokens, long totalTokens, long reasoningTokens) {}
+    }
 }

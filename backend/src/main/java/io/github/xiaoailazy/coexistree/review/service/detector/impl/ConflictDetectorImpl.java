@@ -9,6 +9,7 @@ import io.github.xiaoailazy.coexistree.review.service.detector.ConflictDetector;
 import io.github.xiaoailazy.coexistree.review.service.detector.DetectionResult;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
+import io.github.xiaoailazy.coexistree.shared.util.LlmCallContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -34,6 +35,7 @@ public class ConflictDetectorImpl implements ConflictDetector {
     public DetectionResult detect(String requirementContent, SystemKnowledgeTree systemTree, String previousResponseId) {
         String prompt = buildPrompt(requirementContent, systemTree);
 
+        LlmCallContext.set("CONFLICT_DETECTION", null, null, null);
         try {
             LlmClient.LlmResponse response = llmClient.chat(prompt, null, 0.3, previousResponseId);
             EvaluationReport report = parseResult(response.content());
@@ -41,6 +43,8 @@ public class ConflictDetectorImpl implements ConflictDetector {
         } catch (Exception e) {
             log.error("功能冲突检测失败", e);
             return DetectionResult.of(createErrorReport(), null);
+        } finally {
+            LlmCallContext.clear();
         }
     }
 

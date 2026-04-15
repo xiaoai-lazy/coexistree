@@ -68,9 +68,9 @@ public class LlmMockFactory {
     public static void mockChat(LlmClient llmClient, String content, String responseId) {
         // 使用 lenient() 避免 UnnecessaryStubbingException，因为测试可能只使用其中一个方法签名
         lenient().when(llmClient.chat(anyString(), any(), anyDouble()))
-                .thenReturn(new LlmClient.LlmResponse(responseId, content));
+                .thenReturn(new LlmClient.LlmResponse(responseId, content, null));
         lenient().when(llmClient.chat(anyString(), any(), anyDouble(), any()))
-                .thenReturn(new LlmClient.LlmResponse(responseId, content));
+                .thenReturn(new LlmClient.LlmResponse(responseId, content, null));
     }
 
     /**
@@ -295,12 +295,11 @@ public class LlmMockFactory {
      * LLM Mock 构建器 - 支持链式调用设置多次返回值
      */
     public static class MockBuilder {
-        private final LlmClient llmClient;
+
         private final org.mockito.stubbing.OngoingStubbing<LlmClient.LlmResponse> stubbing;
         private final org.mockito.stubbing.OngoingStubbing<LlmClient.LlmResponse> stubbingWithPreviousId;
 
         private MockBuilder(LlmClient llmClient) {
-            this.llmClient = llmClient;
             this.stubbing = when(llmClient.chat(anyString(), any(), anyDouble()));
             this.stubbingWithPreviousId = when(llmClient.chat(anyString(), any(), anyDouble(), any()));
         }
@@ -323,8 +322,8 @@ public class LlmMockFactory {
          * @return 构建器自身，支持链式调用
          */
         public MockBuilder respondWith(String content, String responseId) {
-            stubbing.thenReturn(new LlmClient.LlmResponse(responseId, content));
-            stubbingWithPreviousId.thenReturn(new LlmClient.LlmResponse(responseId, content));
+            stubbing.thenReturn(new LlmClient.LlmResponse(responseId, content, null));
+            stubbingWithPreviousId.thenReturn(new LlmClient.LlmResponse(responseId, content, null));
             return this;
         }
 

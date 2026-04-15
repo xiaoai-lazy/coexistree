@@ -2,6 +2,7 @@ package io.github.xiaoailazy.coexistree.indexer.summary;
 
 import io.github.xiaoailazy.coexistree.indexer.summary.SummaryLengthPolicy.SummaryLengthConfig;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
+import io.github.xiaoailazy.coexistree.shared.util.LlmCallContext;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -35,7 +36,12 @@ public class NodeSummaryService {
 
         // 调用 LLM 生成摘要
         String prompt = buildPrompt(normalized, config);
-        return llmClient.chat(prompt, model, 0.0).content();
+        LlmCallContext.set("NODE_SUMMARY", null, null, null);
+        try {
+            return llmClient.chat(prompt, model, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
 
@@ -59,17 +65,6 @@ public class NodeSummaryService {
                 输出格式:
                 摘要: [生成的摘要内容]
                 """.formatted(config.getMinLength(), config.getMaxLength(), text);
-    }
-
-    private String buildPrompt(String text) {
-        return """
-                You are given a part of a document. Your task is to generate a concise description of the main points covered in this partial document.
-
-                Partial Document Text:
-                %s
-
-                Directly return the description, do not include any other text.
-                """.formatted(text);
     }
 
     private String normalize(String text) {

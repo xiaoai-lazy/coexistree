@@ -1,6 +1,5 @@
 package io.github.xiaoailazy.coexistree.chat.dto;
 
-import io.github.xiaoailazy.coexistree.chat.dto.SseEvent;
 
 import java.time.LocalDateTime;
 import java.util.List;

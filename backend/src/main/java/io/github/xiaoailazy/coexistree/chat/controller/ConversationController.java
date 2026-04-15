@@ -7,6 +7,7 @@ import io.github.xiaoailazy.coexistree.chat.dto.ConversationResponse;
 import io.github.xiaoailazy.coexistree.chat.dto.CreateConversationRequest;
 import io.github.xiaoailazy.coexistree.chat.dto.MessageResponse;
 import io.github.xiaoailazy.coexistree.chat.service.ConversationService;
+import io.github.xiaoailazy.coexistree.agent.service.AgentChatService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,9 +22,14 @@ import java.util.List;
 public class ConversationController {
 
     private final ConversationService conversationService;
+    private final AgentChatService agentChatService;
 
-    public ConversationController(ConversationService conversationService) {
+    public ConversationController(
+            ConversationService conversationService,
+            AgentChatService agentChatService
+    ) {
         this.conversationService = conversationService;
+        this.agentChatService = agentChatService;
     }
 
     @PostMapping
@@ -59,15 +65,16 @@ public class ConversationController {
     }
 
     /**
-     * 智能对话 - 支持意图识别和需求评估
+     * 智能对话 - 由 ADK Agent 驱动
      */
     @PostMapping(value = "/{conversationId}/smart-chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter smartChat(
             @PathVariable String conversationId,
             @RequestBody ChatRequest request,
-            @AuthenticationPrincipal SecurityUserDetails userDetails) {
-        SseEmitter emitter = new SseEmitter(300_000L); // 5分钟超时，评估可能需要更长时间
-        new Thread(() -> conversationService.smartChatStream(conversationId, request, emitter, userDetails)).start();
+            @AuthenticationPrincipal SecurityUserDetails userDetails
+    ) {
+        SseEmitter emitter = new SseEmitter(300_000L);
+        agentChatService.smartChatStream(conversationId, request, emitter, userDetails);
         return emitter;
     }
 }

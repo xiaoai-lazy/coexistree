@@ -1,6 +1,5 @@
 package io.github.xiaoailazy.coexistree.document.task;
 
-import io.github.xiaoailazy.coexistree.shared.entity.ProcessLogEntity;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
 import io.github.xiaoailazy.coexistree.shared.repository.ProcessLogRepository;
@@ -24,8 +23,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;

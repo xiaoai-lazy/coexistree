@@ -1,8 +1,5 @@
 package io.github.xiaoailazy.coexistree.knowledge.service;
 
-import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
-import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
-import io.github.xiaoailazy.coexistree.config.JacksonConfig;
 import io.github.xiaoailazy.coexistree.knowledge.model.*;
 import io.github.xiaoailazy.coexistree.indexer.model.*;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
@@ -26,14 +23,10 @@ class MergeChangeFailureTest {
     @TempDir
     Path tempDir;
 
-    private JsonUtils jsonUtils;
     private SystemEntity devSystem;
 
     @BeforeEach
     void setUp() {
-        JacksonConfig jacksonConfig = new JacksonConfig();
-        jsonUtils = new JsonUtils(jacksonConfig.objectMapper());
-
         devSystem = new SystemEntity();
         devSystem.setId(1L);
         devSystem.setSystemCode("DEV_01");

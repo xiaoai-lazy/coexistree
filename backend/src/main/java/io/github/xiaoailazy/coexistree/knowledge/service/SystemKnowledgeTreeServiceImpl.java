@@ -21,7 +21,9 @@ import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
 import io.github.xiaoailazy.coexistree.indexer.llm.RetryableLlmService;
 import io.github.xiaoailazy.coexistree.indexer.model.*;
 import io.github.xiaoailazy.coexistree.indexer.summary.NodeSummaryService;
+import io.github.xiaoailazy.coexistree.shared.util.LlmCallContext;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -306,12 +308,12 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         List<SimplifiedTreeNode> result = new ArrayList<>();
         for (TreeNode node : nodes) {
             SimplifiedTreeNode simplified = new SimplifiedTreeNode();
-            simplified.nodeId = node.getNodeId();
-            simplified.title = node.getTitle();
-            simplified.summary = node.getSummary();
-            simplified.prefixSummary = node.getPrefixSummary();
+            simplified.setNodeId(node.getNodeId());
+            simplified.setTitle(node.getTitle());
+            simplified.setSummary(node.getSummary());
+            simplified.setPrefixSummary(node.getPrefixSummary());
             if (node.getNodes() != null && !node.getNodes().isEmpty()) {
-                simplified.children = simplifyNodes(node.getNodes());
+                simplified.setChildren(simplifyNodes(node.getNodes()));
             }
             result.add(simplified);
         }
@@ -676,7 +678,12 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         prompt.append("输出格式:\n");
         prompt.append("[整合后的完整内容]");
 
-        return llmClient.chat(prompt.toString(), null, 0.0).content();
+        LlmCallContext.set("CHANGE_INTEGRATION", null, null, null);
+        try {
+            return llmClient.chat(prompt.toString(), null, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
@@ -698,7 +705,12 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         prompt.append("输出格式:\n");
         prompt.append("[变更描述]");
 
-        return llmClient.chat(prompt.toString(), null, 0.0).content();
+        LlmCallContext.set("CHANGE_DESCRIPTION", null, null, null);
+        try {
+            return llmClient.chat(prompt.toString(), null, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
@@ -767,7 +779,12 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         prompt.append("输出格式:\n");
         prompt.append("[整合后的完整内容]");
 
-        return llmClient.chat(prompt.toString(), null, 0.0).content();
+        LlmCallContext.set("TEXT_INTEGRATION", null, null, null);
+        try {
+            return llmClient.chat(prompt.toString(), null, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
@@ -814,17 +831,23 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         prompt.append("输出格式:\n");
         prompt.append("[父模块的完整描述]");
 
-        return llmClient.chat(prompt.toString(), null, 0.0).content();
+        LlmCallContext.set("PARENT_SUMMARY", null, null, null);
+        try {
+            return llmClient.chat(prompt.toString(), null, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
      * 简化的树节点结构（用于 LLM 输入）
      */
+    @lombok.Data
     private static class SimplifiedTreeNode {
-        public String nodeId;
-        public String title;
-        public String summary;
-        public String prefixSummary;
-        public List<SimplifiedTreeNode> children;
+        private String nodeId;
+        private String title;
+        private String summary;
+        private String prefixSummary;
+        private List<SimplifiedTreeNode> children;
     }
 }

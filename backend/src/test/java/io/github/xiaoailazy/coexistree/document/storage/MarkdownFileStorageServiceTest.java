@@ -57,7 +57,7 @@ class MarkdownFileStorageServiceTest {
         assertThat(Files.exists(deepPath.getParent())).isFalse();
 
         // When
-        Path result = markdownFileStorageService.save(deepPath, file);
+        markdownFileStorageService.save(deepPath, file);
 
         // Then
         assertThat(Files.exists(deepPath.getParent().getParent().getParent())).isTrue();
@@ -167,7 +167,7 @@ class MarkdownFileStorageServiceTest {
         when(file.getBytes()).thenReturn(new byte[0]);
 
         // When
-        Path result = markdownFileStorageService.save(targetPath, file);
+        markdownFileStorageService.save(targetPath, file);
 
         // Then
         assertThat(Files.exists(targetPath)).isTrue();

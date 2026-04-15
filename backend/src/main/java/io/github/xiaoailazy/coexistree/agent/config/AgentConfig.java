@@ -104,6 +104,7 @@ public class AgentConfig {
     ) {
         return LlmAgent.builder()
                 .name("qa-agent")
+                .description("Search the knowledge tree, read document content, and generate accurate answers with citations")
                 .model(adkLlm)
                 .instruction("""
                         You are a QA Assistant for the CoExistree knowledge management system.
@@ -136,6 +137,7 @@ public class AgentConfig {
     ) {
         return LlmAgent.builder()
                 .name("eval-agent")
+                .description("Evaluate requirement documents against the existing knowledge tree for conflicts, consistency, and impact")
                 .model(adkLlm)
                 .instruction("""
                         You are an Evaluation Assistant for the CoExistree knowledge management system.
@@ -187,6 +189,7 @@ public class AgentConfig {
 
         return LlmAgent.builder()
                 .name("root-agent")
+                .description("Intelligent router that analyzes user requests and delegates to specialized agents")
                 .model(adkLlm)
                 .instruction(instruction)
                 .tools(

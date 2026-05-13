@@ -1,38 +1,48 @@
 package io.github.xiaoailazy.coexistree.indexer.llm;
 
-import com.openai.client.OpenAIClient;
-import com.openai.client.okhttp.OpenAIOkHttpClient;
-import com.openai.core.http.StreamResponse;
-import com.openai.models.responses.Response;
-import com.openai.models.responses.ResponseCreateParams;
-import com.openai.models.responses.ResponseOutputItem;
-import com.openai.models.responses.ResponseOutputMessage;
-import com.openai.models.responses.ResponseOutputText;
-import com.openai.models.responses.ResponseStreamEvent;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.openai.OpenAiChatModel;
 import io.github.xiaoailazy.coexistree.config.LlmProperties;
+import io.github.xiaoailazy.coexistree.shared.entity.DocLlmCallLogEntity;
+import io.github.xiaoailazy.coexistree.shared.repository.DocLlmCallLogRepository;
+import io.github.xiaoailazy.coexistree.shared.util.LlmCallContext;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.function.Consumer;
+import java.time.LocalDateTime;
+import java.util.Map;
 
 @Slf4j
 @Component
 public class LlmClient {
 
     private final LlmProperties llmProperties;
-    private final OpenAIClient openAIClient;
+    private final ChatModel chatModel;
+    private final DocLlmCallLogRepository llmCallLogRepository;
 
-    public LlmClient(LlmProperties llmProperties) {
+    public LlmClient(LlmProperties llmProperties,
+                     DocLlmCallLogRepository llmCallLogRepository) {
         this.llmProperties = llmProperties;
-        String apiKey = llmProperties.getApiKey();
-        String resolvedApiKey = (apiKey != null && !apiKey.isBlank()) ? apiKey : "dummy-key";
-        this.openAIClient = OpenAIOkHttpClient.builder()
-                .apiKey(resolvedApiKey)
+        this.llmCallLogRepository = llmCallLogRepository;
+
+        Map<String, Object> thinkingDisabled = Map.of("thinking", Map.of("type", "disabled"));
+
+        this.chatModel = OpenAiChatModel.builder()
                 .baseUrl(llmProperties.getBaseUrl())
+                .apiKey(llmProperties.getApiKey())
+                .modelName(llmProperties.getModel())
+                .timeout(java.time.Duration.ofMillis(llmProperties.getTimeout()))
+                .customParameters(thinkingDisabled)
+                .logRequests(false)
+                .logResponses(false)
                 .build();
-        log.info("LlmClient initialized with baseUrl={}, model={}",
+
+        log.info("LlmClient initialized with baseUrl={}, model={}, thinking=disabled",
                 llmProperties.getBaseUrl(), llmProperties.getModel());
     }
 
@@ -46,95 +56,99 @@ public class LlmClient {
 
         log.debug("Starting LLM chat, model={}, promptLength={}", resolvedModel, prompt.length());
 
+        LlmCallContext.LlmCallInfo ctx = LlmCallContext.get().orElse(null);
+        long startTime = System.currentTimeMillis();
+
         try {
-            ResponseCreateParams.Builder paramsBuilder = ResponseCreateParams.builder()
-                    .model(resolvedModel)
-                    .input(prompt)
-                    .temperature(resolvedTemp);
+            ChatModel modelInstance = buildChatModel(resolvedModel, resolvedTemp);
 
-            if (previousResponseId != null && !previousResponseId.isBlank()) {
-                paramsBuilder.previousResponseId(previousResponseId);
-            }
+            ChatRequest request = ChatRequest.builder()
+                    .messages(new UserMessage(prompt))
+                    .build();
 
-            ResponseCreateParams params = paramsBuilder.build();
-
-            long startTime = System.currentTimeMillis();
-            Response response = openAIClient.responses().create(params);
+            ChatResponse response = modelInstance.chat(request);
             long elapsed = System.currentTimeMillis() - startTime;
 
-            String content = response.output().stream()
-                    .filter(ResponseOutputItem::isMessage)
-                    .flatMap(item -> item.message().map(List::of).orElseGet(List::of).stream())
-                    .flatMap(msg -> msg.content().stream())
-                    .filter(ResponseOutputMessage.Content::isOutputText)
-                    .flatMap(contentItem -> contentItem.outputText().map(List::of).orElseGet(List::of).stream())
-                    .map(ResponseOutputText::text)
-                    .findFirst()
-                    .orElse("");
+            AiMessage aiMessage = response.aiMessage();
+            String content = aiMessage != null ? aiMessage.text() : "";
+            if (content == null) content = "";
+
+            LlmResponse.Usage usage = extractUsage(response);
+
+            // Record LLM call log if context is present
+            if (ctx != null) {
+                recordLlmCall(ctx, resolvedModel, resolvedTemp, usage, elapsed, null);
+            }
 
             log.debug("LLM chat completed, elapsed={}ms, responseLength={}", elapsed, content.length());
-            return new LlmResponse(response.id(), content);
+            return new LlmResponse(null, content, usage);
 
         } catch (Exception e) {
-            log.error("LLM chat failed", e);
-            return new LlmResponse(null, "Error: " + e.getMessage());
+            long elapsed = System.currentTimeMillis() - startTime;
+            log.error("LLM chat failed, elapsed={}ms", elapsed, e);
+
+            if (ctx != null) {
+                recordLlmCall(ctx, resolvedModel, resolvedTemp, null, elapsed, e.getMessage());
+            }
+
+            return new LlmResponse(null, "Error: " + e.getMessage(), null);
         }
     }
 
-    public String chatStream(String prompt, String model, Double temperature,
-                             String previousResponseId,
-                             Consumer<String> onThinking, Consumer<String> onText) {
-        String resolvedModel = resolveModel(model);
-        double resolvedTemp = temperature != null ? temperature : llmProperties.getTemperature();
-
-        log.debug("Starting LLM stream, model={}, promptLength={}", resolvedModel, prompt.length());
-
-        StringBuilder textBuilder = new StringBuilder();
-        String[] responseIdHolder = new String[1];
-
+    private void recordLlmCall(LlmCallContext.LlmCallInfo ctx,
+                               String model,
+                               double temperature,
+                               LlmResponse.Usage usage,
+                               long elapsedMs,
+                               String errorMessage) {
         try {
-            ResponseCreateParams.Builder paramsBuilder = ResponseCreateParams.builder()
-                    .model(resolvedModel)
-                    .input(prompt)
-                    .temperature(resolvedTemp);
-
-            if (previousResponseId != null && !previousResponseId.isBlank()) {
-                paramsBuilder.previousResponseId(previousResponseId);
+            DocLlmCallLogEntity entity = new DocLlmCallLogEntity();
+            entity.setProcessLogId(ctx.processLogId());
+            entity.setModel(model);
+            entity.setTemperature(temperature);
+            if (usage != null) {
+                entity.setInputTokens(usage.inputTokens());
+                entity.setOutputTokens(usage.outputTokens());
+                entity.setTotalTokens(usage.totalTokens());
+                entity.setReasoningTokens(usage.reasoningTokens());
             }
-
-            ResponseCreateParams params = paramsBuilder.build();
-
-            long startTime = System.currentTimeMillis();
-
-            try (StreamResponse<ResponseStreamEvent> stream = openAIClient.responses().createStreaming(params)) {
-                stream.stream().forEach(event -> {
-                    // Process output text delta events
-                    if (event.isOutputTextDelta()) {
-                        String text = event.asOutputTextDelta().delta();
-                        textBuilder.append(text);
-                        if (onText != null) {
-                            onText.accept(text);
-                        }
-                    }
-                    // Process response completed event to extract responseId
-                    else if (event.isCompleted()) {
-                        Response completedResponse = event.asCompleted().response();
-                        responseIdHolder[0] = completedResponse.id();
-                        log.debug("Extracted responseId from stream completion: {}", responseIdHolder[0]);
-                    }
-                });
-            }
-
-            long elapsed = System.currentTimeMillis() - startTime;
-            log.debug("LLM stream completed, elapsed={}ms, textLength={}, responseId={}",
-                    elapsed, textBuilder.length(), responseIdHolder[0]);
-
-            return responseIdHolder[0];
-
+            entity.setElapsedMs(elapsedMs);
+            entity.setSuccess(errorMessage == null);
+            entity.setErrorMessage(errorMessage);
+            entity.setCreatedAt(LocalDateTime.now());
+            llmCallLogRepository.save(entity);
+            log.debug("LLM call logged: model={}, elapsed={}ms, success={}", model, elapsedMs, errorMessage == null);
         } catch (Exception e) {
-            log.error("LLM stream failed", e);
-            throw new RuntimeException("LLM stream failed", e);
+            log.warn("Failed to persist LLM call log: {}", e.getMessage());
         }
+    }
+
+    private ChatModel buildChatModel(String model, double temperature) {
+        Map<String, Object> thinkingDisabled = Map.of("thinking", Map.of("type", "disabled"));
+        return OpenAiChatModel.builder()
+                .baseUrl(llmProperties.getBaseUrl())
+                .apiKey(llmProperties.getApiKey())
+                .modelName(model)
+                .temperature(temperature)
+                .timeout(java.time.Duration.ofMillis(llmProperties.getTimeout()))
+                .customParameters(thinkingDisabled)
+                .logRequests(false)
+                .logResponses(false)
+                .build();
+    }
+
+    private LlmResponse.Usage extractUsage(ChatResponse response) {
+        if (response == null) return null;
+
+        dev.langchain4j.model.output.TokenUsage tokenUsage = response.tokenUsage();
+        if (tokenUsage == null) return null;
+
+        return new LlmResponse.Usage(
+                tokenUsage.inputTokenCount(),
+                tokenUsage.outputTokenCount(),
+                tokenUsage.totalTokenCount(),
+                0
+        );
     }
 
     public String defaultModel() {
@@ -154,5 +168,7 @@ public class LlmClient {
         return (model != null && !model.isBlank()) ? model : llmProperties.getModel();
     }
 
-    public record LlmResponse(String responseId, String content) {}
+    public record LlmResponse(String responseId, String content, Usage usage) {
+        public record Usage(long inputTokens, long outputTokens, long totalTokens, long reasoningTokens) {}
+    }
 }

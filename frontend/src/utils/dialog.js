@@ -50,68 +50,7 @@ export function confirmDelete(itemName = '', extraWarning = '') {
   })
 }
 
-/**
- * 危险操作确认（如永久删除、禁用等）
- * @param {string} message - 提示消息
- * @param {string} title - 标题
- * @returns {Promise}
- */
-export function confirmDanger(message, title = '危险操作') {
-  return confirm(message, title, 'error', {
-    confirmButtonText: '确认',
-    confirmButtonClass: 'el-button--danger'
-  })
-}
-
-/**
- * 信息提示对话框
- * @param {string} message - 提示消息
- * @param {string} title - 标题
- * @returns {Promise}
- */
-export function alert(message, title = '提示', type = 'info') {
-  return ElMessageBox.alert(message, title, {
-    type,
-    confirmButtonText: '知道了',
-    closeOnClickModal: false,
-    closeOnPressEscape: true,
-    showClose: true
-  })
-}
-
-/**
- * Dialog 默认配置
- * 用于统一 el-dialog 的默认行为
- */
-export const dialogDefaultProps = {
-  closeOnClickModal: false,
-  closeOnPressEscape: true,
-  destroyOnClose: true,
-  alignCenter: false,
-  center: false,
-  appendToBody: false,
-  lockScroll: true,
-  modal: true,
-  showClose: true,
-  draggable: false
-}
-
-/**
- * Dialog 尺寸配置
- */
-export const dialogSizes = {
-  xs: '360px',
-  sm: '480px',
-  md: '600px',
-  lg: '800px',
-  xl: '960px'
-}
-
 export default {
   confirm,
-  confirmDelete,
-  confirmDanger,
-  alert,
-  dialogDefaultProps,
-  dialogSizes
+  confirmDelete
 }

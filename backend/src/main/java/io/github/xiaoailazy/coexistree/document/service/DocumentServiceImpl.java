@@ -8,14 +8,11 @@ import io.github.xiaoailazy.coexistree.document.entity.DocumentTreeEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
 import io.github.xiaoailazy.coexistree.indexer.model.DocumentTree;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
-import io.github.xiaoailazy.coexistree.indexer.storage.TreeFileLoader;
 import io.github.xiaoailazy.coexistree.security.model.SecurityUserDetails;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
-import io.github.xiaoailazy.coexistree.shared.util.FilePathUtils;
-import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
+import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentTreeRepository;
-import io.github.xiaoailazy.coexistree.document.storage.MarkdownFileStorageService;
 import io.github.xiaoailazy.coexistree.document.event.DocumentUploadedEvent;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
@@ -31,8 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
@@ -48,33 +44,30 @@ public class DocumentServiceImpl implements DocumentService {
     private final DocumentRepository documentRepository;
     private final DocumentTreeRepository documentTreeRepository;
     private final SystemService systemService;
-    private final AppStorageProperties storageProperties;
-    private final MarkdownFileStorageService markdownFileStorageService;
     private final SystemKnowledgeTreeRepository systemKnowledgeTreeRepository;
+    private final DocumentAccessService documentAccessService;
     private final SystemUserMappingRepository systemUserMappingRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final TreeFileLoader treeFileLoader;
+    private final JsonUtils jsonUtils;
 
     public DocumentServiceImpl(
             DocumentRepository documentRepository,
             DocumentTreeRepository documentTreeRepository,
             SystemService systemService,
-            AppStorageProperties storageProperties,
-            MarkdownFileStorageService markdownFileStorageService,
             SystemKnowledgeTreeRepository systemKnowledgeTreeRepository,
+            DocumentAccessService documentAccessService,
             SystemUserMappingRepository systemUserMappingRepository,
             ApplicationEventPublisher eventPublisher,
-            TreeFileLoader treeFileLoader
+            JsonUtils jsonUtils
     ) {
         this.documentRepository = documentRepository;
         this.documentTreeRepository = documentTreeRepository;
         this.systemService = systemService;
-        this.storageProperties = storageProperties;
-        this.markdownFileStorageService = markdownFileStorageService;
         this.systemKnowledgeTreeRepository = systemKnowledgeTreeRepository;
+        this.documentAccessService = documentAccessService;
         this.systemUserMappingRepository = systemUserMappingRepository;
         this.eventPublisher = eventPublisher;
-        this.treeFileLoader = treeFileLoader;
+        this.jsonUtils = jsonUtils;
     }
 
     @Override
@@ -87,7 +80,13 @@ public class DocumentServiceImpl implements DocumentService {
         checkUploadPermission(systemId, userDetails, securityLevel);
 
         validateMarkdown(file);
-        SystemEntity system = systemService.getEntity(systemId);
+
+        String fileContent;
+        try {
+            fileContent = new String(file.getBytes(), StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            throw new BusinessException(ErrorCode.INVALID_FILE_CONTENT, "Failed to read uploaded file");
+        }
 
         // 计算文件内容哈希，用于防重复上传
         String contentHash = calculateContentHash(file);
@@ -112,7 +111,7 @@ public class DocumentServiceImpl implements DocumentService {
         entity.setContentType("markdown");
         entity.setParseStatus("PENDING");
         entity.setDocType(docType);
-        entity.setFilePath("");
+        entity.setFileContent(fileContent);
         entity.setContentHash(contentHash);  // 保存哈希值
         entity.setSecurityLevel(securityLevel != null ? securityLevel : 1);
         entity.setUploadedBy(userDetails.getId());
@@ -121,18 +120,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         try {
             DocumentEntity saved = documentRepository.save(entity);
-            log.debug("文档元数据保存成功, documentId={}, docType={}", saved.getId(), saved.getDocType());
-
-            Path path = FilePathUtils.markdownPath(
-                    storageProperties.docRoot(), system.getSystemCode(), saved.getId());
-            log.debug("文档存储路径, path={}", path);
-
-            markdownFileStorageService.save(path, file);
-            saved.setFilePath(path.toString());
-            saved.setUpdatedAt(LocalDateTime.now());
-            saved = documentRepository.save(saved);
-
-            log.info("文档保存成功, documentId={}, path={}, docType={}", saved.getId(), path, saved.getDocType());
+            log.info("文档保存成功, documentId={}, docType={}", saved.getId(), saved.getDocType());
 
             // 发布文档上传事件，触发异步处理（虚拟线程）
             // 使用 AFTER_COMMIT 确保事务提交后才处理
@@ -208,12 +196,12 @@ public class DocumentServiceImpl implements DocumentService {
         log.debug("查询文档列表, systemId={}", systemId);
 
         // Check access
-        checkSystemAccess(systemId, userDetails);
+        documentAccessService.checkSystemAccess(systemId, userDetails);
 
         List<DocumentEntity> documents = documentRepository.findBySystemId(systemId);
 
         // Filter by view level for non-owners
-        Integer viewLevel = getViewLevel(systemId, userDetails);
+        Integer viewLevel = documentAccessService.getViewLevel(systemId, userDetails);
         if (viewLevel != null && viewLevel < 5) {
             documents = documents.stream()
                     .filter(d -> d.getSecurityLevel() <= viewLevel)
@@ -236,45 +224,12 @@ public class DocumentServiceImpl implements DocumentService {
 
         documentTreeRepository.findByDocumentId(documentId)
                 .ifPresent(tree -> {
-                    deleteTreeFile(tree.getTreeFilePath());
                     documentTreeRepository.delete(tree);
                     log.debug("删除文档树记录, treeId={}", tree.getId());
                 });
 
-        deleteMarkdownFile(document.getFilePath());
-
         documentRepository.delete(document);
         log.info("文档删除成功, documentId={}", documentId);
-    }
-
-    private void deleteMarkdownFile(String filePath) {
-        if (filePath == null || filePath.isBlank()) {
-            return;
-        }
-        try {
-            Path path = Path.of(filePath);
-            if (Files.exists(path)) {
-                Files.delete(path);
-                log.debug("删除Markdown文件成功, path={}", path);
-            }
-        } catch (Exception e) {
-            log.warn("删除Markdown文件失败, path={}", filePath, e);
-        }
-    }
-
-    private void deleteTreeFile(String treeFilePath) {
-        if (treeFilePath == null || treeFilePath.isBlank()) {
-            return;
-        }
-        try {
-            Path path = Path.of(treeFilePath);
-            if (Files.exists(path)) {
-                Files.delete(path);
-                log.debug("删除树文件成功, path={}", path);
-            }
-        } catch (Exception e) {
-            log.warn("删除树文件失败, path={}", treeFilePath, e);
-        }
     }
 
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -307,10 +262,10 @@ public class DocumentServiceImpl implements DocumentService {
                 });
 
         // 2. 权限校验（复用现有逻辑）
-        checkDocumentAccess(document, userDetails);
+        documentAccessService.requireCanReadDocument(document, userDetails);
 
         // 3. 读取原始文件内容
-        String content = readOriginalFile(document.getFilePath());
+        String content = document.getFileContent();
 
         // 4. 获取文档树锚点
         List<NodeAnchor> anchors = getDocumentAnchors(documentId);
@@ -328,40 +283,6 @@ public class DocumentServiceImpl implements DocumentService {
         );
     }
 
-    private void checkDocumentAccess(DocumentEntity document, SecurityUserDetails userDetails) {
-        // SUPER_ADMIN 有全部权限
-        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
-            return;
-        }
-
-        // 检查系统访问权限
-        systemUserMappingRepository.findBySystemIdAndUserId(document.getSystemId(), userDetails.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.PERMISSION_DENIED, "无权限访问此文档"));
-
-        // 检查密级
-        Integer viewLevel = getViewLevel(document.getSystemId(), userDetails);
-        if (viewLevel != null && document.getSecurityLevel() > viewLevel) {
-            throw new BusinessException(ErrorCode.PERMISSION_DENIED, "文档密级超出您的查看权限");
-        }
-    }
-
-    private String readOriginalFile(String filePath) {
-        if (filePath == null || filePath.isBlank()) {
-            return "";
-        }
-        try {
-            Path path = Path.of(filePath);
-            if (Files.exists(path)) {
-                return Files.readString(path);
-            }
-            log.warn("文件不存在, path={}", filePath);
-            return "";
-        } catch (Exception e) {
-            log.error("读取文件失败, path={}", filePath, e);
-            return "";
-        }
-    }
-
     private List<NodeAnchor> getDocumentAnchors(Long documentId) {
         Optional<DocumentTreeEntity> treeOpt = documentTreeRepository.findByDocumentId(documentId);
         if (treeOpt.isEmpty()) {
@@ -369,7 +290,7 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         try {
-            DocumentTree tree = treeFileLoader.load(Path.of(treeOpt.get().getTreeFilePath()));
+            DocumentTree tree = jsonUtils.fromJson(treeOpt.get().getTreeJson(), DocumentTree.class);
             return extractAnchors(tree.getStructure());
         } catch (Exception e) {
             log.warn("加载文档树失败, documentId={}", documentId, e);
@@ -415,7 +336,7 @@ public class DocumentServiceImpl implements DocumentService {
 
         // Check view level constraint for MAINTAINER
         if (!userDetails.getRole().name().equals("SUPER_ADMIN")) {
-            Integer viewLevel = getViewLevel(document.getSystemId(), userDetails);
+            Integer viewLevel = documentAccessService.getViewLevel(document.getSystemId(), userDetails);
             if (viewLevel != null && securityLevel > viewLevel) {
                 throw new BusinessException(ErrorCode.PERMISSION_DENIED, "安全等级不能超过您的查看等级");
             }
@@ -441,25 +362,6 @@ public class DocumentServiceImpl implements DocumentService {
         if (mapping.getViewLevel() < securityLevel) {
             throw new BusinessException(ErrorCode.PERMISSION_DENIED, "文档安全等级不能超过您的查看等级");
         }
-    }
-
-    private void checkSystemAccess(Long systemId, SecurityUserDetails userDetails) {
-        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
-            return;
-        }
-
-        systemUserMappingRepository.findBySystemIdAndUserId(systemId, userDetails.getId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.PERMISSION_DENIED, "无权限访问此系统"));
-    }
-
-    private Integer getViewLevel(Long systemId, SecurityUserDetails userDetails) {
-        if (userDetails.getRole().name().equals("SUPER_ADMIN")) {
-            return 5;
-        }
-
-        return systemUserMappingRepository.findBySystemIdAndUserId(systemId, userDetails.getId())
-                .map(SystemUserMappingEntity::getViewLevel)
-                .orElse(0);
     }
 
     private DocumentResponse toResponse(DocumentEntity entity) {

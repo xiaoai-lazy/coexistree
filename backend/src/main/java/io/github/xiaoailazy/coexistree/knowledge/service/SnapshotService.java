@@ -4,7 +4,6 @@ import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemTreeSnapshotEntity;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemTreeSnapshotRepository;
-import io.github.xiaoailazy.coexistree.knowledge.storage.SystemTreeFileLoader;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -12,7 +11,6 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 系统树快照服务
@@ -24,14 +22,12 @@ public class SnapshotService {
     private static final DateTimeFormatter SNAPSHOT_NAME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm");
 
     private final SystemTreeSnapshotRepository snapshotRepository;
-    private final SystemTreeFileLoader treeFileLoader;
+
     private final JsonUtils jsonUtils;
 
     public SnapshotService(SystemTreeSnapshotRepository snapshotRepository,
-                       SystemTreeFileLoader treeFileLoader,
                        JsonUtils jsonUtils) {
         this.snapshotRepository = snapshotRepository;
-        this.treeFileLoader = treeFileLoader;
         this.jsonUtils = jsonUtils;
     }
 
@@ -89,69 +85,5 @@ public class SnapshotService {
             }
         }
         return count;
-    }
-
-    /**
-     * 获取指定系统的可用快照列表（按时间倒序）
-     *
-     * @param systemId 系统 ID
-     * @return 快照列表
-     */
-    public List<SnapshotItem> getAvailableSnapshots(Long systemId) {
-        List<SystemTreeSnapshotEntity> snapshots = snapshotRepository.findBySystemIdOrderByCreatedAtDesc(systemId);
-        return snapshots.stream()
-                .filter(s -> "ACTIVE".equals(s.getStatus()))
-                .map(this::toSnapshotItem)
-                .collect(Collectors.toList());
-    }
-
-    private SnapshotItem toSnapshotItem(SystemTreeSnapshotEntity snapshot) {
-        return new SnapshotItem(
-                snapshot.getSnapshotName(),
-                snapshot.getCreatedAt(),
-                snapshot.getTriggeredBy(),
-                snapshot.getNodeCount(),
-                snapshot.getIsPinned()
-        );
-    }
-
-    /**
-     * 快照项（用于返回给前端）
-     */
-    public static class SnapshotItem {
-        private final String snapshotName;
-        private final LocalDateTime createdAt;
-        private final String triggeredBy;
-        private final Integer nodeCount;
-        private final Boolean isPinned;
-
-        public SnapshotItem(String snapshotName, LocalDateTime createdAt, String triggeredBy,
-                           Integer nodeCount, Boolean isPinned) {
-            this.snapshotName = snapshotName;
-            this.createdAt = createdAt;
-            this.triggeredBy = triggeredBy;
-            this.nodeCount = nodeCount;
-            this.isPinned = isPinned;
-        }
-
-        public String getSnapshotName() {
-            return snapshotName;
-        }
-
-        public LocalDateTime getCreatedAt() {
-            return createdAt;
-        }
-
-        public String getTriggeredBy() {
-            return triggeredBy;
-        }
-
-        public Integer getNodeCount() {
-            return nodeCount;
-        }
-
-        public Boolean getIsPinned() {
-            return isPinned;
-        }
     }
 }

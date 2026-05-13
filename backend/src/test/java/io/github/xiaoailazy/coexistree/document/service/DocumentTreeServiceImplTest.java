@@ -6,15 +6,13 @@ import io.github.xiaoailazy.coexistree.document.entity.DocumentTreeEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentTreeRepository;
 import io.github.xiaoailazy.coexistree.indexer.model.DocumentTree;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
-import io.github.xiaoailazy.coexistree.indexer.storage.TreeFileLoader;
+import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,13 +26,13 @@ class DocumentTreeServiceImplTest {
     @Mock
     private DocumentTreeRepository documentTreeRepository;
     @Mock
-    private TreeFileLoader treeFileLoader;
+    private JsonUtils jsonUtils;
 
     private DocumentTreeServiceImpl documentTreeService;
 
     @BeforeEach
     void setUp() {
-        documentTreeService = new DocumentTreeServiceImpl(documentTreeRepository, treeFileLoader);
+        documentTreeService = new DocumentTreeServiceImpl(documentTreeRepository, jsonUtils);
     }
 
     @Test
@@ -42,11 +40,11 @@ class DocumentTreeServiceImplTest {
         // Given
         Long documentId = 1L;
         String nodeId = "1.1";
-        String treeFilePath = "/data/trees/test/tree.json";
+        String treeJson = "{}";
 
         DocumentTreeEntity treeEntity = new DocumentTreeEntity();
         treeEntity.setDocumentId(documentId);
-        treeEntity.setTreeFilePath(treeFilePath);
+        treeEntity.setTreeJson(treeJson);
 
         TreeNode targetNode = createTreeNode("1.1", "标题", "目标文本内容");
         TreeNode rootNode = createTreeNode("1", "根标题", "根内容", List.of(targetNode));
@@ -54,7 +52,7 @@ class DocumentTreeServiceImplTest {
         documentTree.setStructure(List.of(rootNode));
 
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.of(treeEntity));
-        when(treeFileLoader.load(Path.of(treeFilePath))).thenReturn(documentTree);
+        when(jsonUtils.fromJson(treeJson, DocumentTree.class)).thenReturn(documentTree);
 
         // When
         String result = documentTreeService.getNodeText(documentId, nodeId);
@@ -86,18 +84,18 @@ class DocumentTreeServiceImplTest {
         // Given
         Long documentId = 1L;
         String nodeId = "999";
-        String treeFilePath = "/data/trees/test/tree.json";
+        String treeJson = "{}";
 
         DocumentTreeEntity treeEntity = new DocumentTreeEntity();
         treeEntity.setDocumentId(documentId);
-        treeEntity.setTreeFilePath(treeFilePath);
+        treeEntity.setTreeJson(treeJson);
 
         TreeNode rootNode = createTreeNode("1", "根标题", "根内容");
         DocumentTree documentTree = new DocumentTree();
         documentTree.setStructure(List.of(rootNode));
 
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.of(treeEntity));
-        when(treeFileLoader.load(Path.of(treeFilePath))).thenReturn(documentTree);
+        when(jsonUtils.fromJson(treeJson, DocumentTree.class)).thenReturn(documentTree);
 
         // When
         String result = documentTreeService.getNodeText(documentId, nodeId);
@@ -111,18 +109,18 @@ class DocumentTreeServiceImplTest {
         // Given
         Long documentId = 1L;
         String nodeId = "1";
-        String treeFilePath = "/data/trees/test/tree.json";
+        String treeJson = "{}";
 
         DocumentTreeEntity treeEntity = new DocumentTreeEntity();
         treeEntity.setDocumentId(documentId);
-        treeEntity.setTreeFilePath(treeFilePath);
+        treeEntity.setTreeJson(treeJson);
 
         TreeNode node = createTreeNode("1", "标题", null);
         DocumentTree documentTree = new DocumentTree();
         documentTree.setStructure(List.of(node));
 
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.of(treeEntity));
-        when(treeFileLoader.load(Path.of(treeFilePath))).thenReturn(documentTree);
+        when(jsonUtils.fromJson(treeJson, DocumentTree.class)).thenReturn(documentTree);
 
         // When
         String result = documentTreeService.getNodeText(documentId, nodeId);
@@ -136,11 +134,11 @@ class DocumentTreeServiceImplTest {
         // Given
         Long documentId = 1L;
         String nodeId = "1.1.2";
-        String treeFilePath = "/data/trees/test/tree.json";
+        String treeJson = "{}";
 
         DocumentTreeEntity treeEntity = new DocumentTreeEntity();
         treeEntity.setDocumentId(documentId);
-        treeEntity.setTreeFilePath(treeFilePath);
+        treeEntity.setTreeJson(treeJson);
 
         TreeNode level3Node = createTreeNode("1.1.2", "三级标题", "三级内容");
         TreeNode level2Node = createTreeNode("1.1", "二级标题", "二级内容", List.of(level3Node));
@@ -150,7 +148,7 @@ class DocumentTreeServiceImplTest {
         documentTree.setStructure(List.of(level1Node));
 
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.of(treeEntity));
-        when(treeFileLoader.load(Path.of(treeFilePath))).thenReturn(documentTree);
+        when(jsonUtils.fromJson(treeJson, DocumentTree.class)).thenReturn(documentTree);
 
         // When
         String result = documentTreeService.getNodeText(documentId, nodeId);
@@ -164,11 +162,11 @@ class DocumentTreeServiceImplTest {
         // Given
         Long documentId = 1L;
         String nodeId = "2.1";
-        String treeFilePath = "/data/trees/test/tree.json";
+        String treeJson = "{}";
 
         DocumentTreeEntity treeEntity = new DocumentTreeEntity();
         treeEntity.setDocumentId(documentId);
-        treeEntity.setTreeFilePath(treeFilePath);
+        treeEntity.setTreeJson(treeJson);
 
         TreeNode childNode = createTreeNode("2.1", "子节点", "子节点内容");
         TreeNode root1 = createTreeNode("1", "根1", "根1内容");
@@ -178,7 +176,7 @@ class DocumentTreeServiceImplTest {
         documentTree.setStructure(List.of(root1, root2));
 
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.of(treeEntity));
-        when(treeFileLoader.load(Path.of(treeFilePath))).thenReturn(documentTree);
+        when(jsonUtils.fromJson(treeJson, DocumentTree.class)).thenReturn(documentTree);
 
         // When
         String result = documentTreeService.getNodeText(documentId, nodeId);
@@ -192,17 +190,17 @@ class DocumentTreeServiceImplTest {
         // Given
         Long documentId = 1L;
         String nodeId = "1";
-        String treeFilePath = "/data/trees/test/tree.json";
+        String treeJson = "{}";
 
         DocumentTreeEntity treeEntity = new DocumentTreeEntity();
         treeEntity.setDocumentId(documentId);
-        treeEntity.setTreeFilePath(treeFilePath);
+        treeEntity.setTreeJson(treeJson);
 
         DocumentTree documentTree = new DocumentTree();
         documentTree.setStructure(List.of());
 
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.of(treeEntity));
-        when(treeFileLoader.load(Path.of(treeFilePath))).thenReturn(documentTree);
+        when(jsonUtils.fromJson(treeJson, DocumentTree.class)).thenReturn(documentTree);
 
         // When
         String result = documentTreeService.getNodeText(documentId, nodeId);

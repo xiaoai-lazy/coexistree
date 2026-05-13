@@ -22,11 +22,12 @@
 ```yaml
 # application-prod.yml 关键安全设置
 
-# 1. 数据存储安全
+# 1. 数据库连接安全
 spring:
   datasource:
-    # H2 数据库文件存储在指定目录，确保该目录有适当的权限控制
-    url: jdbc:h2:file:${STORAGE_PATH}/h2/coexistree;MODE=MySQL;AUTO_SERVER=TRUE
+    url: jdbc:postgresql://postgres:5432/coexistree
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
 # 2. 保护 LLM API Key
 app:

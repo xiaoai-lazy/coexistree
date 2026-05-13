@@ -26,11 +26,16 @@ INSERT INTO system_user_mappings (id, system_id, user_id, relation_type, view_le
 VALUES (2, 1, 102, 'SUBSCRIBER', 1, CURRENT_TIMESTAMP);
 
 -- 文档数据
-INSERT INTO documents (id, system_id, doc_name, original_file_name, file_path, content_type, parse_status, doc_type, security_level, uploaded_by, created_at, updated_at)
-VALUES (1, 1, 'order-api.md', 'order-api.md', '/data/docs/order-api.md', 'text/markdown', 'SUCCESS', 'MARKDOWN', 1, 101, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO documents (id, system_id, doc_name, original_file_name, file_content, content_type, parse_status, doc_type, security_level, uploaded_by, created_at, updated_at)
+VALUES (1, 1, 'order-api.md', 'order-api.md', '# Order API', 'text/markdown', 'SUCCESS', 'MARKDOWN', 1, 101, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
-INSERT INTO documents (id, system_id, doc_name, original_file_name, file_path, content_type, parse_status, doc_type, security_level, uploaded_by, created_at, updated_at)
-VALUES (2, 1, 'user-guide.md', 'user-guide.md', '/data/docs/user-guide.md', 'text/markdown', 'PROCESSING', 'MARKDOWN', 1, 101, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO documents (id, system_id, doc_name, original_file_name, file_content, content_type, parse_status, doc_type, security_level, uploaded_by, created_at, updated_at)
+VALUES (2, 1, 'user-guide.md', 'user-guide.md', '# User Guide', 'text/markdown', 'PROCESSING', 'MARKDOWN', 1, 101, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
-INSERT INTO documents (id, system_id, doc_name, original_file_name, file_path, content_type, parse_status, doc_type, security_level, uploaded_by, created_at, updated_at)
-VALUES (3, 2, 'other-system.md', 'other-system.md', '/data/docs/other-system.md', 'text/markdown', 'SUCCESS', 'MARKDOWN', 1, 102, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO documents (id, system_id, doc_name, original_file_name, file_content, content_type, parse_status, doc_type, security_level, uploaded_by, created_at, updated_at)
+VALUES (3, 2, 'other-system.md', 'other-system.md', '# Other System', 'text/markdown', 'SUCCESS', 'MARKDOWN', 1, 102, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+SELECT setval(pg_get_serial_sequence('users', 'id'), (SELECT MAX(id) FROM users));
+SELECT setval(pg_get_serial_sequence('systems', 'id'), (SELECT MAX(id) FROM systems));
+SELECT setval(pg_get_serial_sequence('system_user_mappings', 'id'), (SELECT MAX(id) FROM system_user_mappings));
+SELECT setval(pg_get_serial_sequence('documents', 'id'), (SELECT MAX(id) FROM documents));

@@ -1,5 +1,6 @@
 package io.github.xiaoailazy.coexistree.auth.service;
 
+import io.github.xiaoailazy.coexistree.audit.service.AuditLogger;
 import io.github.xiaoailazy.coexistree.auth.dto.ChangePasswordRequest;
 import io.github.xiaoailazy.coexistree.auth.dto.LoginRequest;
 import io.github.xiaoailazy.coexistree.auth.dto.LoginResponse;
@@ -39,11 +40,14 @@ class AuthServiceTest {
     @Mock
     private JwtUtil jwtUtil;
 
+    @Mock
+    private AuditLogger auditLogger;
+
     private AuthService authService;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthServiceImpl(userRepository, passwordEncoder, jwtUtil);
+        authService = new AuthServiceImpl(userRepository, passwordEncoder, jwtUtil, auditLogger);
     }
 
     private UserEntity createTestUser(Long id, String username, UserRole role) {
@@ -75,6 +79,7 @@ class AuthServiceTest {
             when(passwordEncoder.matches(password, user.getPasswordHash())).thenReturn(true);
             when(jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole())).thenReturn(token);
             when(userRepository.save(any(UserEntity.class))).thenReturn(user);
+            doNothing().when(auditLogger).logLogin(any(), any(), any(), anyBoolean());
 
             LoginRequest request = new LoginRequest();
             request.setUsername(username);

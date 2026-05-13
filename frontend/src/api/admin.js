@@ -60,12 +60,3 @@ export function listAllSystems() {
 export function transferSystemOwnership(systemId, newOwnerId) {
   return http.put(`/v1/systems/${systemId}/transfer`, { newOwnerId })
 }
-
-// ========== 成员概览 ==========
-
-/**
- * 获取跨系统成员统计
- */
-export function getMemberOverview() {
-  return http.get('/v1/systems/admin/member-overview')
-}

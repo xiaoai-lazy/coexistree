@@ -15,14 +15,13 @@ public class SystemKnowledgeTreeEntity {
     @Column(name = "system_id", nullable = false, unique = true)
     private Long systemId;
 
-    @Column(name = "tree_file_path", nullable = false, length = 512)
-    private String treeFilePath;
+    @Column(name = "tree_json", nullable = false, columnDefinition = "TEXT")
+    private String treeJson;
 
     @Column(name = "tree_version", nullable = false)
     private Integer treeVersion = 1;
 
-    @Lob
-    @Column(name = "description")
+    @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
     @Column(name = "node_count", nullable = false)
@@ -53,12 +52,12 @@ public class SystemKnowledgeTreeEntity {
         this.systemId = systemId;
     }
 
-    public String getTreeFilePath() {
-        return treeFilePath;
+    public String getTreeJson() {
+        return treeJson;
     }
 
-    public void setTreeFilePath(String treeFilePath) {
-        this.treeFilePath = treeFilePath;
+    public void setTreeJson(String treeJson) {
+        this.treeJson = treeJson;
     }
 
     public Integer getTreeVersion() {

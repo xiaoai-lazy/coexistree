@@ -5,20 +5,21 @@ package io.github.xiaoailazy.coexistree.chat.dto;
  */
 public record ChatRequest(
         String question,
-        Long documentId
+        Long documentId,
+        Long systemId
 ) {
     /**
      * 创建纯问答请求
      */
     public static ChatRequest question(String question) {
-        return new ChatRequest(question, null);
+        return new ChatRequest(question, null, null);
     }
 
     /**
      * 创建带文档的请求
      */
     public static ChatRequest withDocument(String question, Long documentId) {
-        return new ChatRequest(question, documentId);
+        return new ChatRequest(question, documentId, null);
     }
 
     /**

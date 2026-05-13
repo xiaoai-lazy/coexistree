@@ -23,7 +23,7 @@ class DocumentRepositoryIntegrationTest {
         doc.setSystemId(systemId);
         doc.setDocName(fileName);
         doc.setOriginalFileName(fileName);
-        doc.setFilePath("/test/" + fileName);
+        doc.setFileContent("# " + fileName);
         doc.setContentType("text/markdown");
         doc.setParseStatus(status);
         doc.setDocType("MARKDOWN");

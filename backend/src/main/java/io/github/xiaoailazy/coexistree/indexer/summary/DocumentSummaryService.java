@@ -3,6 +3,8 @@ package io.github.xiaoailazy.coexistree.indexer.summary;
 import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
+import io.github.xiaoailazy.coexistree.indexer.tree.TreeSimplifier;
+import io.github.xiaoailazy.coexistree.shared.util.LlmCallContext;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,10 +14,12 @@ public class DocumentSummaryService {
 
     private final LlmClient llmClient;
     private final JsonUtils jsonUtils;
+    private final TreeSimplifier treeSimplifier;
 
-    public DocumentSummaryService(LlmClient llmClient, JsonUtils jsonUtils) {
+    public DocumentSummaryService(LlmClient llmClient, JsonUtils jsonUtils, TreeSimplifier treeSimplifier) {
         this.llmClient = llmClient;
         this.jsonUtils = jsonUtils;
+        this.treeSimplifier = treeSimplifier;
     }
 
     public String summarize(List<TreeNode> structure, String docName, String model) {
@@ -26,7 +30,12 @@ public class DocumentSummaryService {
                 Document Structure: %s
 
                 Directly return the description, do not include any other text.
-                """.formatted(jsonUtils.toJson(structure));
-        return llmClient.chat(prompt, model, 0.0).content();
+                """.formatted(jsonUtils.toJson(treeSimplifier.simplify(structure)));
+        LlmCallContext.set("DOCUMENT_SUMMARY", null, null, null, null);
+        try {
+            return llmClient.chat(prompt, model, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 }

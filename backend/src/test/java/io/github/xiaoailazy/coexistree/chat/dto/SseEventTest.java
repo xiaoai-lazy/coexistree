@@ -1,5 +1,7 @@
 package io.github.xiaoailazy.coexistree.chat.dto;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.xiaoailazy.coexistree.indexer.model.Citation;
 import io.github.xiaoailazy.coexistree.indexer.model.NodeSource;
 import org.junit.jupiter.api.Test;
@@ -158,6 +160,53 @@ class SseEventTest {
         // (docId is null, so :class="{ 'clickable': cite.docId }" will be false)
         assertThat(dto.docId()).isNull();
         assertThat(dto.lineNum()).isNull();
+    }
+
+    @Test
+    void sourcesEventShouldSerializeSourceDtos() throws Exception {
+        SseEvent.SourceDto source = new SseEvent.SourceDto(
+                12L,
+                "支付系统需求.md",
+                "2.1.3",
+                "退款规则",
+                "支付系统 > 交易 > 退款规则",
+                "用户发起退款后，系统应根据订单状态判断是否允许退款",
+                86,
+                3
+        );
+
+        SseEvent event = SseEvent.sources(List.of(source));
+        JsonNode json = new ObjectMapper().readTree(new ObjectMapper().writeValueAsString(event));
+
+        assertThat(json.get("type").asText()).isEqualTo("sources");
+        assertThat(json.get("status").asText()).isEqualTo("success");
+        assertThat(json.get("content").isNull()).isTrue();
+        assertThat(json.get("citations").isNull()).isTrue();
+
+        JsonNode sourceJson = json.get("sources").get(0);
+        assertThat(sourceJson.get("docId").asLong()).isEqualTo(12L);
+        assertThat(sourceJson.get("docName").asText()).isEqualTo("支付系统需求.md");
+        assertThat(sourceJson.get("nodeId").asText()).isEqualTo("2.1.3");
+        assertThat(sourceJson.get("title").asText()).isEqualTo("退款规则");
+        assertThat(sourceJson.get("path").asText()).isEqualTo("支付系统 > 交易 > 退款规则");
+        assertThat(sourceJson.get("snippet").asText()).contains("退款");
+        assertThat(sourceJson.get("lineNum").asInt()).isEqualTo(86);
+        assertThat(sourceJson.get("level").asInt()).isEqualTo(3);
+    }
+
+    @Test
+    void nonSourceEventsShouldHaveNullSources() {
+        Citation citation = new Citation(
+                "node-1", "Title 1", "Snippet 1",
+                null, 1L, "doc1.md", 10, 1
+        );
+
+        assertThat(SseEvent.stage("searching", "processing").sources()).isNull();
+        assertThat(SseEvent.thinking("Thinking content").sources()).isNull();
+        assertThat(SseEvent.answer("Answer content").sources()).isNull();
+        assertThat(SseEvent.citations(List.of(citation)).sources()).isNull();
+        assertThat(SseEvent.done(true).sources()).isNull();
+        assertThat(SseEvent.error("Something went wrong").sources()).isNull();
     }
 
     @Test

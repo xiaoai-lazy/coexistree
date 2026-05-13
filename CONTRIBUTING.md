@@ -17,7 +17,7 @@
 |------|------|
 | 后端 | Java 21, Spring Boot 3.x, Spring Security, JWT |
 | 前端 | Vue 3, Pinia, Axios, Element Plus |
-| 数据库 | H2 (开发), MySQL/PostgreSQL (生产) |
+| 数据库 | PostgreSQL |
 | AI | 字节跳动 Ark SDK |
 | 构建 | Maven, Vite |
 
@@ -42,7 +42,6 @@
 4. **访问应用**
    - 前端: <http://localhost:5173>
    - 后端 API: <http://localhost:8080>
-   - H2 控制台: <http://localhost:8080/h2-console>
 
 ## 提交规范
 

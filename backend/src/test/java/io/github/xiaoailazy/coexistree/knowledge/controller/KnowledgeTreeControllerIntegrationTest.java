@@ -70,7 +70,7 @@ class KnowledgeTreeControllerIntegrationTest extends BaseDataIntegrationTest {
         // Given - Create a knowledge tree directly in the database
         SystemKnowledgeTreeEntity tree = new SystemKnowledgeTreeEntity();
         tree.setSystemId(systemId);
-        tree.setTreeFilePath("/data/system-trees/" + systemId + "/tree.json");
+        tree.setTreeJson("{\"structure\":[]}");
         tree.setTreeVersion(5);
         tree.setNodeCount(42);
         tree.setTreeStatus("ACTIVE");
@@ -101,7 +101,7 @@ class KnowledgeTreeControllerIntegrationTest extends BaseDataIntegrationTest {
         // Given - Create a tree with BUILDING status
         SystemKnowledgeTreeEntity tree = new SystemKnowledgeTreeEntity();
         tree.setSystemId(systemId);
-        tree.setTreeFilePath("/data/system-trees/" + systemId + "/tree.json");
+        tree.setTreeJson("{\"structure\":[]}");
         tree.setTreeVersion(1);
         tree.setNodeCount(0);
         tree.setTreeStatus("BUILDING");

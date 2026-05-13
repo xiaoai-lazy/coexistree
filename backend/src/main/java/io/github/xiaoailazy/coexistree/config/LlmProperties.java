@@ -26,9 +26,6 @@ public class LlmProperties {
     @Positive
     private int timeout = 60000;
 
-    @Positive
-    private int retryAttempts = 3;
-
     private boolean enabled = true;
 
     // Getters and Setters
@@ -49,9 +46,6 @@ public class LlmProperties {
 
     public int getTimeout() { return timeout; }
     public void setTimeout(int timeout) { this.timeout = timeout; }
-
-    public int getRetryAttempts() { return retryAttempts; }
-    public void setRetryAttempts(int retryAttempts) { this.retryAttempts = retryAttempts; }
 
     public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }

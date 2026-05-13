@@ -2,9 +2,16 @@
 .idea/
 .vscode/
 .claude/
+.trae/
+.kiro/
+.superpowers/
 *.iml
 *.ipr
 *.iws
+
+# Project local documentation
+CLAUDE.md
+AGENTS.md
 
 # Worktrees
 .worktrees/
@@ -13,6 +20,7 @@
 backend/target/
 backend/*.log
 backend/data/
+backend/.jqwik-database
 backend/!.mvn/wrapper/maven-wrapper.jar
 backend/scripts/
 
@@ -55,5 +63,3 @@ backend/EOF
 nginx/nginx.conf
 nginx/ssl/
 
-# Project local documentation
-CLAUDE.md

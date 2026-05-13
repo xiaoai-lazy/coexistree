@@ -1,11 +1,10 @@
 package io.github.xiaoailazy.coexistree.document.task;
 
-import io.github.xiaoailazy.coexistree.shared.entity.ProcessLogEntity;
+import io.github.xiaoailazy.coexistree.shared.entity.DocProcessLogEntity;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
-import io.github.xiaoailazy.coexistree.shared.repository.ProcessLogRepository;
-import io.github.xiaoailazy.coexistree.shared.util.FilePathUtils;
-import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
+import io.github.xiaoailazy.coexistree.shared.repository.DocProcessLogRepository;
+import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentTreeEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
@@ -14,7 +13,6 @@ import io.github.xiaoailazy.coexistree.knowledge.service.SystemKnowledgeTreeServ
 import io.github.xiaoailazy.coexistree.indexer.facade.PageIndexMarkdownService;
 import io.github.xiaoailazy.coexistree.indexer.model.DocumentTree;
 import io.github.xiaoailazy.coexistree.indexer.model.PageIndexBuildOptions;
-import io.github.xiaoailazy.coexistree.indexer.storage.TreeFileWriter;
 import io.github.xiaoailazy.coexistree.indexer.tree.TreeNodeCounter;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
 import io.github.xiaoailazy.coexistree.system.service.SystemService;
@@ -22,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 
 @Slf4j
@@ -31,23 +28,21 @@ public class DocumentTreeBuildTask {
 
     private final DocumentRepository documentRepository;
     private final DocumentTreeRepository documentTreeRepository;
-    private final ProcessLogRepository processLogRepository;
+    private final DocProcessLogRepository processLogRepository;
     private final SystemService systemService;
     private final SystemKnowledgeTreeService systemKnowledgeTreeService;
-    private final AppStorageProperties storageProperties;
     private final PageIndexMarkdownService pageIndexMarkdownService;
-    private final TreeFileWriter treeFileWriter;
+    private final JsonUtils jsonUtils;
     private final TreeNodeCounter treeNodeCounter;
 
     public DocumentTreeBuildTask(
             DocumentRepository documentRepository,
             DocumentTreeRepository documentTreeRepository,
-            ProcessLogRepository processLogRepository,
+            DocProcessLogRepository processLogRepository,
             SystemService systemService,
             SystemKnowledgeTreeService systemKnowledgeTreeService,
-            AppStorageProperties storageProperties,
             PageIndexMarkdownService pageIndexMarkdownService,
-            TreeFileWriter treeFileWriter,
+            JsonUtils jsonUtils,
             TreeNodeCounter treeNodeCounter
     ) {
         this.documentRepository = documentRepository;
@@ -55,9 +50,8 @@ public class DocumentTreeBuildTask {
         this.processLogRepository = processLogRepository;
         this.systemService = systemService;
         this.systemKnowledgeTreeService = systemKnowledgeTreeService;
-        this.storageProperties = storageProperties;
         this.pageIndexMarkdownService = pageIndexMarkdownService;
-        this.treeFileWriter = treeFileWriter;
+        this.jsonUtils = jsonUtils;
         this.treeNodeCounter = treeNodeCounter;
     }
 
@@ -90,22 +84,17 @@ public class DocumentTreeBuildTask {
     }
 
     private void buildTree(DocumentEntity document, SystemEntity system) {
-        log.debug("开始构建树结构, documentId={}, filePath={}", document.getId(), document.getFilePath());
+        log.debug("开始构建树结构, documentId={}", document.getId());
 
-        Path markdownPath = Path.of(document.getFilePath());
         DocumentTree tree = pageIndexMarkdownService.buildTree(
-                markdownPath,
+                document.getFileContent(),
+                document.getDocName(),
                 PageIndexBuildOptions.defaultOptions(null)
         );
 
         int nodeCount = treeNodeCounter.count(tree.getStructure());
         log.debug("树结构构建完成, 节点数量={}", nodeCount);
 
-        Path treePath = FilePathUtils.treePath(storageProperties.treeRoot(), system.getSystemCode(), document.getId());
-        log.debug("写入树文件, path={}", treePath);
-        treeFileWriter.write(treePath, tree);
-
-        // 13.1.1 保存 document_trees 记录（替代 document_index）
         DocumentTreeEntity treeEntity = documentTreeRepository.findByDocumentId(document.getId())
                 .orElseGet(DocumentTreeEntity::new);
 
@@ -114,7 +103,7 @@ public class DocumentTreeBuildTask {
             treeEntity.setDocumentId(document.getId());
             treeEntity.setCreatedAt(now);
         }
-        treeEntity.setTreeFilePath(treePath.toString());
+        treeEntity.setTreeJson(jsonUtils.toPrettyJson(tree));
         treeEntity.setDocDescription(tree.getDocDescription());
         treeEntity.setNodeCount(nodeCount);
         treeEntity.setUpdatedAt(now);
@@ -161,11 +150,7 @@ public class DocumentTreeBuildTask {
             treeEntity.setDocumentId(document.getId());
             treeEntity.setCreatedAt(now);
         }
-        treeEntity.setTreeFilePath(FilePathUtils.treePath(
-                storageProperties.treeRoot(),
-                system.getSystemCode(),
-                document.getId()
-        ).toString());
+        treeEntity.setTreeJson("{}");
         treeEntity.setNodeCount(0);
         treeEntity.setUpdatedAt(now);
         documentTreeRepository.save(treeEntity);
@@ -174,7 +159,7 @@ public class DocumentTreeBuildTask {
     }
 
     private void logProcess(Long documentId, String processStage, String processStatus, String message) {
-        ProcessLogEntity logEntity = new ProcessLogEntity();
+        DocProcessLogEntity logEntity = new DocProcessLogEntity();
         logEntity.setEntityType("DOCUMENT");
         logEntity.setEntityId(documentId);
         logEntity.setProcessStage(processStage);

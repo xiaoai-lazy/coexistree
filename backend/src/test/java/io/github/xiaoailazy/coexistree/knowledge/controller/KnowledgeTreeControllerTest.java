@@ -33,7 +33,7 @@ class KnowledgeTreeControllerTest {
         SystemKnowledgeTreeEntity entity = new SystemKnowledgeTreeEntity();
         entity.setId(1L);
         entity.setSystemId(systemId);
-        entity.setTreeFilePath("data/system-trees/test/system_tree.json");
+        entity.setTreeJson("{\"structure\":[]}");
         entity.setTreeVersion(version);
         entity.setNodeCount(nodeCount);
         entity.setTreeStatus(status);

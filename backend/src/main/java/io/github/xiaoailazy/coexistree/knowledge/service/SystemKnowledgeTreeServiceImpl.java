@@ -1,31 +1,29 @@
 package io.github.xiaoailazy.coexistree.knowledge.service;
 
-import io.github.xiaoailazy.coexistree.shared.entity.ProcessLogEntity;
+import io.github.xiaoailazy.coexistree.shared.entity.DocProcessLogEntity;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
-import io.github.xiaoailazy.coexistree.shared.repository.ProcessLogRepository;
-import io.github.xiaoailazy.coexistree.shared.util.FilePathUtils;
+import io.github.xiaoailazy.coexistree.shared.repository.DocProcessLogRepository;
 import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
-import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.model.LlmTreeNode;
 import io.github.xiaoailazy.coexistree.knowledge.model.MergeInstruction;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemTreeStructure;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
-import io.github.xiaoailazy.coexistree.knowledge.storage.SystemTreeFileLoader;
-import io.github.xiaoailazy.coexistree.knowledge.storage.SystemTreeFileWriter;
 import io.github.xiaoailazy.coexistree.knowledge.tree.SystemTreeNodeIdGenerator;
 import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
 import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
 import io.github.xiaoailazy.coexistree.indexer.llm.RetryableLlmService;
 import io.github.xiaoailazy.coexistree.indexer.model.*;
 import io.github.xiaoailazy.coexistree.indexer.summary.NodeSummaryService;
+import io.github.xiaoailazy.coexistree.indexer.tree.TreeSimplifier;
+import io.github.xiaoailazy.coexistree.shared.util.LlmCallContext;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,40 +34,34 @@ import java.util.Optional;
 public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeService {
 
     private final SystemKnowledgeTreeRepository systemKnowledgeTreeRepository;
-    private final SystemTreeFileLoader systemTreeFileLoader;
-    private final SystemTreeFileWriter systemTreeFileWriter;
     private final PromptTemplateService promptTemplateService;
     private final LlmClient llmClient;
     private final RetryableLlmService retryableLlmService;
     private final JsonUtils jsonUtils;
-    private final AppStorageProperties storageProperties;
-    private final ProcessLogRepository processLogRepository;
+    private final DocProcessLogRepository processLogRepository;
     private final NodeSummaryService nodeSummaryService;
     private final SnapshotService snapshotService;
+    private final TreeSimplifier treeSimplifier;
 
     public SystemKnowledgeTreeServiceImpl(
             SystemKnowledgeTreeRepository systemKnowledgeTreeRepository,
-            SystemTreeFileLoader systemTreeFileLoader,
-            SystemTreeFileWriter systemTreeFileWriter,
             PromptTemplateService promptTemplateService,
             LlmClient llmClient,
             RetryableLlmService retryableLlmService,
             JsonUtils jsonUtils,
-            AppStorageProperties storageProperties,
-            ProcessLogRepository processLogRepository,
+            DocProcessLogRepository processLogRepository,
             NodeSummaryService nodeSummaryService,
-            SnapshotService snapshotService) {
+            SnapshotService snapshotService,
+            TreeSimplifier treeSimplifier) {
         this.systemKnowledgeTreeRepository = systemKnowledgeTreeRepository;
-        this.systemTreeFileLoader = systemTreeFileLoader;
-        this.systemTreeFileWriter = systemTreeFileWriter;
         this.promptTemplateService = promptTemplateService;
         this.llmClient = llmClient;
         this.retryableLlmService = retryableLlmService;
         this.jsonUtils = jsonUtils;
-        this.storageProperties = storageProperties;
         this.processLogRepository = processLogRepository;
         this.nodeSummaryService = nodeSummaryService;
         this.snapshotService = snapshotService;
+        this.treeSimplifier = treeSimplifier;
     }
 
     @Override
@@ -91,9 +83,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
                     "System knowledge tree is not ready, current status: " + entity.getTreeStatus());
         }
 
-        // 10.2.1.3 加载系统树 JSON 文件（从相对路径解析）
-        Path treePath = FilePathUtils.resolveSystemTreePath(storageProperties.systemTreeRoot(), entity.getTreeFilePath());
-        SystemKnowledgeTree tree = systemTreeFileLoader.load(treePath);
+        SystemKnowledgeTree tree = jsonUtils.fromJson(entity.getTreeJson(), SystemKnowledgeTree.class);
 
         log.info("成功获取活跃系统知识树, systemId={}, treeVersion={}, nodeCount={}",
                 systemId, entity.getTreeVersion(), entity.getNodeCount());
@@ -143,7 +133,8 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
                     docTree,
                     documentId,
                     idGen,
-                    now
+                    now,
+                    system.getId()
             );
 
             // 构建 SystemKnowledgeTree
@@ -157,19 +148,11 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             systemTree.setLastUpdatedAt(now);
             systemTree.setStructure(systemNodes);
 
-            // 10.2.2.5 写入系统树 JSON 文件
-            Path treePath = FilePathUtils.systemTreePath(
-                    storageProperties.systemTreeRoot(),
-                    system.getSystemCode()
-            );
-            log.debug("写入系统树文件, path={}", treePath);
-            systemTreeFileWriter.write(treePath, systemTree);
-
             // 10.2.2.6 保存 system_knowledge_trees 记录
             int nodeCount = countNodes(systemNodes);
             SystemKnowledgeTreeEntity entity = new SystemKnowledgeTreeEntity();
             entity.setSystemId(system.getId());
-            entity.setTreeFilePath(FilePathUtils.getRelativeSystemTreePath(system.getSystemCode()));
+            entity.setTreeJson(jsonUtils.toPrettyJson(systemTree));
             entity.setTreeVersion(1);
             entity.setDescription(llmOutput.getSystemDescription());
             entity.setNodeCount(nodeCount);
@@ -242,7 +225,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
 
             // 10.2.3.4.5 第二步：生成内容和变更记录
             log.debug("执行第二步：生成内容和变更记录");
-            generateContentAndChangeLog(systemTree, docTree, documentId, now);
+            generateContentAndChangeLog(systemTree, docTree, documentId, now, system.getId());
 
             // 更新系统树的 lastUpdatedAt
             systemTree.setLastUpdatedAt(now);
@@ -256,16 +239,9 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             int newNodeCount = countNodes(systemTree.getStructure());
             systemTree.setTreeVersion(newVersion);
             entity.setTreeVersion(newVersion);
+            entity.setTreeJson(jsonUtils.toPrettyJson(systemTree));
             entity.setNodeCount(newNodeCount);
             entity.setUpdatedAt(now);
-
-            // 10.2.3.6 原子写入系统树 JSON 文件
-            Path treePath = FilePathUtils.systemTreePath(
-                    storageProperties.systemTreeRoot(),
-                    system.getSystemCode()
-            );
-            log.debug("原子写入系统树文件, path={}", treePath);
-            systemTreeFileWriter.write(treePath, systemTree);
 
             // 10.2.3.7 更新数据库记录
             systemKnowledgeTreeRepository.save(entity);
@@ -295,27 +271,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
      * 只保留 nodeId, title, summary/prefixSummary 字段
      */
     private String extractStructureForLlm(List<TreeNode> nodes) {
-        List<SimplifiedTreeNode> simplified = simplifyNodes(nodes);
-        return jsonUtils.toJson(simplified);
-    }
-
-    /**
-     * 简化树节点，只保留 LLM 需要的字段
-     */
-    private List<SimplifiedTreeNode> simplifyNodes(List<TreeNode> nodes) {
-        List<SimplifiedTreeNode> result = new ArrayList<>();
-        for (TreeNode node : nodes) {
-            SimplifiedTreeNode simplified = new SimplifiedTreeNode();
-            simplified.nodeId = node.getNodeId();
-            simplified.title = node.getTitle();
-            simplified.summary = node.getSummary();
-            simplified.prefixSummary = node.getPrefixSummary();
-            if (node.getNodes() != null && !node.getNodes().isEmpty()) {
-                simplified.children = simplifyNodes(node.getNodes());
-            }
-            result.add(simplified);
-        }
-        return result;
+        return jsonUtils.toJson(treeSimplifier.simplify(nodes));
     }
 
     /**
@@ -326,7 +282,8 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
             DocumentTree docTree,
             Long documentId,
             SystemTreeNodeIdGenerator idGen,
-            LocalDateTime now) {
+            LocalDateTime now,
+            Long systemId) {
         List<TreeNode> result = new ArrayList<>();
         for (LlmTreeNode llmNode : llmNodes) {
             TreeNode sysNode = new TreeNode();
@@ -366,7 +323,8 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
                         String integratedText = integrateMultiSourceTextForBaseline(
                                 llmNode.getTitle(),
                                 sourceTexts,
-                                docTree.getDocName()
+                                docTree.getDocName(),
+                                systemId
                         );
                         sysNode.setText(integratedText);
                     }
@@ -375,13 +333,13 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
 
             // 递归处理子节点（先处理子节点，后序遍历）
             if (llmNode.getChildren() != null && !llmNode.getChildren().isEmpty()) {
-                sysNode.setNodes(convertLlmOutputToTreeNodes(llmNode.getChildren(), docTree, documentId, idGen, now));
+                sysNode.setNodes(convertLlmOutputToTreeNodes(llmNode.getChildren(), docTree, documentId, idGen, now, systemId));
             }
 
             // 无来源节点：汇总子节点内容生成 text
             if ((llmNode.getSourceNodeIds() == null || llmNode.getSourceNodeIds().isEmpty())
                     && sysNode.getNodes() != null && !sysNode.getNodes().isEmpty()) {
-                String aggregatedText = aggregateChildNodeTexts(sysNode.getNodes(), sysNode.getTitle());
+                String aggregatedText = aggregateChildNodeTexts(sysNode.getNodes(), sysNode.getTitle(), systemId);
                 sysNode.setText(aggregatedText);
             }
 
@@ -569,7 +527,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
      * 第二步：生成内容和变更记录
      */
     private void generateContentAndChangeLog(SystemKnowledgeTree systemTree, DocumentTree docTree,
-                                         Long documentId, LocalDateTime now) {
+                                         Long documentId, LocalDateTime now, Long systemId) {
         // 获取所有系统树节点
         List<TreeNode> allSystemNodes = new ArrayList<>();
         collectAllNodes(systemTree.getStructure(), allSystemNodes);
@@ -601,7 +559,8 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
                 sysNode.getTitle(),
                 oldText,
                 sourceTexts,
-                docTree.getDocName()
+                docTree.getDocName(),
+                systemId
             );
 
             // 覆盖更新 text
@@ -613,7 +572,8 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
                     sysNode.getTitle(),
                     oldText,
                     integratedText,
-                    docTree.getDocName()
+                    docTree.getDocName(),
+                    systemId
                 );
 
                 NodeChangeRecord changeRecord = new NodeChangeRecord();
@@ -653,7 +613,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
     /**
      * LLM 整合多来源 text
      */
-    private String integrateMultiSourceText(String title, String oldText, List<String> newTexts, String docName) {
+    private String integrateMultiSourceText(String title, String oldText, List<String> newTexts, String docName, Long systemId) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("你需要将以下内容整合成一段完整、连贯的技术文档。\n\n");
         prompt.append("节点标题: ").append(title).append("\n\n");
@@ -676,13 +636,18 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         prompt.append("输出格式:\n");
         prompt.append("[整合后的完整内容]");
 
-        return llmClient.chat(prompt.toString(), null, 0.0).content();
+        LlmCallContext.set("CHANGE_INTEGRATION", null, null, systemId, null);
+        try {
+            return llmClient.chat(prompt.toString(), null, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
      * 生成变更描述
      */
-    private String generateChangeDescription(String title, String oldText, String newText, String docName) {
+    private String generateChangeDescription(String title, String oldText, String newText, String docName, Long systemId) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("分析以下节点内容的变更，生成一段简洁的变更描述。\n\n");
         prompt.append("节点标题: ").append(title).append("\n");
@@ -698,7 +663,12 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         prompt.append("输出格式:\n");
         prompt.append("[变更描述]");
 
-        return llmClient.chat(prompt.toString(), null, 0.0).content();
+        LlmCallContext.set("CHANGE_DESCRIPTION", null, null, systemId, null);
+        try {
+            return llmClient.chat(prompt.toString(), null, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
@@ -718,8 +688,8 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
      */
     private void saveProcessLog(Long documentId, String stage, String status, String message) {
         try {
-            ProcessLogEntity log = new ProcessLogEntity();
-            log.setEntityType("DOCUMENT");
+            DocProcessLogEntity log = new DocProcessLogEntity();
+            log.setEntityType("SYSTEM_TREE");
             log.setEntityId(documentId);
             log.setProcessStage(stage);
             log.setProcessStatus(status);
@@ -741,7 +711,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
      * @param docName    文档名称
      * @return 整合后的文本
      */
-    private String integrateMultiSourceTextForBaseline(String title, List<String> sourceTexts, String docName) {
+    private String integrateMultiSourceTextForBaseline(String title, List<String> sourceTexts, String docName, Long systemId) {
         if (sourceTexts.isEmpty()) {
             return "";
         }
@@ -767,7 +737,12 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         prompt.append("输出格式:\n");
         prompt.append("[整合后的完整内容]");
 
-        return llmClient.chat(prompt.toString(), null, 0.0).content();
+        LlmCallContext.set("TEXT_INTEGRATION", null, null, systemId, null);
+        try {
+            return llmClient.chat(prompt.toString(), null, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 
     /**
@@ -778,7 +753,7 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
      * @param parentTitle 父节点标题
      * @return 汇总后的文本
      */
-    private String aggregateChildNodeTexts(List<TreeNode> childNodes, String parentTitle) {
+    private String aggregateChildNodeTexts(List<TreeNode> childNodes, String parentTitle, Long systemId) {
         if (childNodes == null || childNodes.isEmpty()) {
             return "";
         }
@@ -814,17 +789,11 @@ public class SystemKnowledgeTreeServiceImpl implements SystemKnowledgeTreeServic
         prompt.append("输出格式:\n");
         prompt.append("[父模块的完整描述]");
 
-        return llmClient.chat(prompt.toString(), null, 0.0).content();
-    }
-
-    /**
-     * 简化的树节点结构（用于 LLM 输入）
-     */
-    private static class SimplifiedTreeNode {
-        public String nodeId;
-        public String title;
-        public String summary;
-        public String prefixSummary;
-        public List<SimplifiedTreeNode> children;
+        LlmCallContext.set("PARENT_SUMMARY", null, null, systemId, null);
+        try {
+            return llmClient.chat(prompt.toString(), null, 0.0).content();
+        } finally {
+            LlmCallContext.clear();
+        }
     }
 }

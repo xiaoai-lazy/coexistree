@@ -3,6 +3,7 @@ package io.github.xiaoailazy.coexistree.shared.handler;
 import io.github.xiaoailazy.coexistree.shared.api.ApiResponse;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
+import jakarta.persistence.OptimisticLockException;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
@@ -29,6 +30,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.ok()
                 .body(ApiResponse.failure(ErrorCode.PERMISSION_DENIED.name(), ex.getMessage()));
+    }
+    
+    @ExceptionHandler(OptimisticLockException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(OptimisticLockException ex) {
+        log.warn("Optimistic lock exception: {}", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.failure(
+                        ErrorCode.CONCURRENT_UPDATE_CONFLICT.name(),
+                        "会话正在被其他请求修改，请稍后重试"
+                ));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

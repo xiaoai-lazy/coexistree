@@ -1,10 +1,9 @@
 package io.github.xiaoailazy.coexistree.document.task;
 
-import io.github.xiaoailazy.coexistree.shared.entity.ProcessLogEntity;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
-import io.github.xiaoailazy.coexistree.shared.repository.ProcessLogRepository;
-import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
+import io.github.xiaoailazy.coexistree.shared.repository.DocProcessLogRepository;
+import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentTreeEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
@@ -13,7 +12,6 @@ import io.github.xiaoailazy.coexistree.knowledge.service.SystemKnowledgeTreeServ
 import io.github.xiaoailazy.coexistree.indexer.facade.PageIndexMarkdownService;
 import io.github.xiaoailazy.coexistree.indexer.model.DocumentTree;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
-import io.github.xiaoailazy.coexistree.indexer.storage.TreeFileWriter;
 import io.github.xiaoailazy.coexistree.indexer.tree.TreeNodeCounter;
 import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
 import io.github.xiaoailazy.coexistree.system.service.SystemService;
@@ -24,8 +22,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -43,17 +39,15 @@ class DocumentTreeBuildTaskTest {
     @Mock
     private DocumentTreeRepository documentTreeRepository;
     @Mock
-    private ProcessLogRepository processLogRepository;
+    private DocProcessLogRepository processLogRepository;
     @Mock
     private SystemService systemService;
     @Mock
     private SystemKnowledgeTreeService systemKnowledgeTreeService;
     @Mock
-    private AppStorageProperties storageProperties;
-    @Mock
     private PageIndexMarkdownService pageIndexMarkdownService;
     @Mock
-    private TreeFileWriter treeFileWriter;
+    private JsonUtils jsonUtils;
     @Mock
     private TreeNodeCounter treeNodeCounter;
 
@@ -67,9 +61,8 @@ class DocumentTreeBuildTaskTest {
                 processLogRepository,
                 systemService,
                 systemKnowledgeTreeService,
-                storageProperties,
                 pageIndexMarkdownService,
-                treeFileWriter,
+                jsonUtils,
                 treeNodeCounter
         );
     }
@@ -84,9 +77,9 @@ class DocumentTreeBuildTaskTest {
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(storageProperties.treeRoot()).thenReturn("/data/trees");
-        when(pageIndexMarkdownService.buildTree(any(), any())).thenReturn(tree);
+        when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any())).thenReturn(tree);
         when(treeNodeCounter.count(tree.getStructure())).thenReturn(1);
+        when(jsonUtils.toPrettyJson(tree)).thenReturn("{\"structure\":[]}");
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.empty());
         when(documentTreeRepository.save(any(DocumentTreeEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(documentRepository.save(any(DocumentEntity.class))).thenAnswer(i -> i.getArgument(0));
@@ -109,9 +102,9 @@ class DocumentTreeBuildTaskTest {
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(storageProperties.treeRoot()).thenReturn("/data/trees");
-        when(pageIndexMarkdownService.buildTree(any(), any())).thenReturn(tree);
+        when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any())).thenReturn(tree);
         when(treeNodeCounter.count(tree.getStructure())).thenReturn(1);
+        when(jsonUtils.toPrettyJson(tree)).thenReturn("{\"structure\":[]}");
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.empty());
         when(documentTreeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(documentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -134,9 +127,9 @@ class DocumentTreeBuildTaskTest {
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(storageProperties.treeRoot()).thenReturn("/data/trees");
-        when(pageIndexMarkdownService.buildTree(any(), any())).thenReturn(tree);
+        when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any())).thenReturn(tree);
         when(treeNodeCounter.count(tree.getStructure())).thenReturn(0);
+        when(jsonUtils.toPrettyJson(tree)).thenReturn("{\"structure\":[]}");
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.empty());
         when(documentTreeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(documentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -174,9 +167,8 @@ class DocumentTreeBuildTaskTest {
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
         when(systemService.getEntity(1L)).thenReturn(system);
         when(documentRepository.save(any(DocumentEntity.class))).thenAnswer(i -> i.getArgument(0));
-        when(pageIndexMarkdownService.buildTree(any(), any()))
+        when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any()))
                 .thenThrow(new RuntimeException("解析失败"));
-        when(storageProperties.treeRoot()).thenReturn("/data/trees");
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.empty());
         when(documentTreeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -206,9 +198,9 @@ class DocumentTreeBuildTaskTest {
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(storageProperties.treeRoot()).thenReturn("/data/trees");
-        when(pageIndexMarkdownService.buildTree(any(), any())).thenReturn(tree);
+        when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any())).thenReturn(tree);
         when(treeNodeCounter.count(tree.getStructure())).thenReturn(0);
+        when(jsonUtils.toPrettyJson(tree)).thenReturn("{\"structure\":[]}");
         when(documentTreeRepository.findByDocumentId(documentId)).thenReturn(Optional.of(existingEntity));
         when(documentTreeRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         when(documentRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -229,7 +221,8 @@ class DocumentTreeBuildTaskTest {
         entity.setId(id);
         entity.setSystemId(systemId);
         entity.setDocType(docType);
-        entity.setFilePath(filePath);
+        entity.setDocName("test.md");
+        entity.setFileContent("# test");
         entity.setOriginalFileName("test.md");
         return entity;
     }

@@ -31,7 +31,7 @@
           </el-button>
         </div>
 
-        <div class="conversation-list">
+        <div class="conversation-list" @scroll="handleConversationScroll">
           <div
             v-for="conv in conversations"
             :key="conv.conversationId"
@@ -52,8 +52,14 @@
             </el-button>
           </div>
 
+          <!-- Loading indicator -->
+          <div v-if="loadingMoreConversations" class="loading-more">
+            <el-icon class="is-loading"><Loading /></el-icon>
+            <span>加载中...</span>
+          </div>
+
           <el-empty
-            v-if="conversations.length === 0"
+            v-if="conversations.length === 0 && !loadingMoreConversations"
             description="暂无会话"
             :image-size="48"
           />
@@ -114,6 +120,28 @@
               <div v-if="msg.statusText" class="status-badge">
                 <span class="status-dot"></span>
                 {{ msg.statusText }}
+              </div>
+
+              <!-- Sources -->
+              <div v-if="msg.sources?.length" class="sources-box">
+                <div class="sources-header" @click="msg.sourcesOpen = !msg.sourcesOpen">
+                  <el-icon><Document /></el-icon>
+                  <span>已找到相关资料 ({{ msg.sources.length }})</span>
+                  <el-icon class="toggle-icon"><ArrowUp v-if="msg.sourcesOpen" /><ArrowDown v-else /></el-icon>
+                </div>
+                <div v-if="msg.sourcesOpen" class="sources-body">
+                  <div
+                    v-for="(source, si) in msg.sources"
+                    :key="si"
+                    class="source-item"
+                    :class="{ 'clickable': source.docId }"
+                    @click="openDocumentPreview(source, msg.sources)"
+                  >
+                    <div class="source-doc">{{ source.docName || source.path }}</div>
+                    <div class="source-title">{{ source.title || source.path }}</div>
+                    <div class="source-snippet">{{ source.snippet || source.text }}</div>
+                  </div>
+                </div>
               </div>
 
               <!-- Thinking -->
@@ -221,6 +249,15 @@ const contentRef = ref(null)
 const attachedDocument = ref(null)
 let abortController = null
 
+// Pagination state variables
+const conversationPage = ref(0)
+const conversationPageSize = ref(20)
+const conversationTotal = ref(0)
+const conversationHasMore = ref(true)
+const loadingMoreConversations = ref(false)
+
+// SSE connection state variables
+
 // Document preview drawer state
 const previewVisible = ref(false)
 const previewDocId = ref(null)
@@ -251,13 +288,45 @@ onMounted(async () => {
   }
 })
 
-const loadConversations = async () => {
+const loadConversations = async (append = false) => {
   if (!selectedSystemId.value) return
+  
+  if (!append) {
+    conversationPage.value = 0
+    conversations.value = []
+  }
+  
   try {
-    const res = await listConversations(selectedSystemId.value)
-    conversations.value = res.data || []
+    loadingMoreConversations.value = true
+    const res = await listConversations(
+      selectedSystemId.value,
+      conversationPage.value,
+      conversationPageSize.value
+    )
+    
+    const newConversations = res.data.content || []
+    if (append) {
+      conversations.value.push(...newConversations)
+    } else {
+      conversations.value = newConversations
+    }
+    
+    conversationTotal.value = res.data.totalElements || 0
+    conversationHasMore.value = conversations.value.length < conversationTotal.value
   } catch {
     ElMessage.error('加载会话列表失败')
+  } finally {
+    loadingMoreConversations.value = false
+  }
+}
+
+const handleConversationScroll = (event) => {
+  const { scrollTop, scrollHeight, clientHeight } = event.target
+  if (scrollHeight - scrollTop - clientHeight < 50 && 
+      conversationHasMore.value && 
+      !loadingMoreConversations.value) {
+    conversationPage.value++
+    loadConversations(true)
   }
 }
 
@@ -289,7 +358,10 @@ const newConversation = async () => {
   try {
     const res = await createConversation(selectedSystemId.value, null)
     const conv = res.data
-    conversations.value.unshift(conv)
+    
+    // Reload first page to show the latest conversation
+    await loadConversations(false)
+    
     currentConversationId.value = conv.conversationId
     messages.value = []
   } catch {
@@ -322,13 +394,32 @@ const switchConversation = async (conv) => {
       typing: false,
       thinking: m.thinking || '',
       thinkingOpen: false,
+      sources: m.sources || [],
+      sourcesOpen: false,
       citations: m.citations || [],
       citationsOpen: false,
       statusText: '',
     }))
     scrollToBottom()
-  } catch {
-    ElMessage.error('加载消息记录失败')
+  } catch (error) {
+    // Handle 404 error - conversation was deleted
+    if (error.response?.status === 404) {
+      ElMessageBox.alert(
+        '该会话已被删除',
+        '提示',
+        {
+          confirmButtonText: '确定',
+          callback: () => {
+            // Refresh conversation list
+            loadConversations()
+            currentConversationId.value = null
+            messages.value = []
+          }
+        }
+      )
+    } else {
+      ElMessage.error('加载消息记录失败')
+    }
   }
 }
 
@@ -357,6 +448,9 @@ const onSubmit = async ({ message, documentId }) => {
   const text = message.trim()
   if (!text || sending.value || !currentConversationId.value) return
 
+  // Set sending flag IMMEDIATELY to prevent rapid-click duplicates
+  sending.value = true
+
   messages.value.push({
     id: Date.now(),
     role: 'user',
@@ -364,7 +458,6 @@ const onSubmit = async ({ message, documentId }) => {
     attachedDocument: attachedDocument.value
   })
   inputValue.value = ''
-  sending.value = true
   scrollToBottom()
 
   const aiMsgId = Date.now() + 1
@@ -376,6 +469,8 @@ const onSubmit = async ({ message, documentId }) => {
     loading: true,
     thinking: '',
     thinkingOpen: true,
+    sources: [],
+    sourcesOpen: true,
     citations: [],
     citationsOpen: false,
     statusText: '',
@@ -395,9 +490,11 @@ const onSubmit = async ({ message, documentId }) => {
       },
       body: JSON.stringify({
         question: text,
-        documentId: documentId
+        documentId: documentId,
+        systemId: selectedSystemId.value
       }),
       signal: abortController.signal,
+      openWhenHidden: true,
       onopen: async () => {
         const msg = getAiMsg()
         if (msg) msg.loading = false
@@ -427,6 +524,12 @@ const onSubmit = async ({ message, documentId }) => {
               msg.statusText = ''
               msg.thinkingOpen = false
               msg.content += data.content
+              break
+
+            // 检索候选资料
+            case SSE_EVENT_TYPES.SOURCES:
+              msg.sources = data.sources || []
+              msg.sourcesOpen = msg.sources.length > 0
               break
 
             // 引用来源
@@ -491,6 +594,8 @@ const onSubmit = async ({ message, documentId }) => {
                   loading: false,
                   thinking: '',
                   thinkingOpen: false,
+                  sources: [],
+                  sourcesOpen: false,
                   citations: [],
                   citationsOpen: false,
                   statusText: '',
@@ -524,12 +629,15 @@ const onSubmit = async ({ message, documentId }) => {
         }
       },
       onerror: (err) => {
+        console.error('SSE connection error:', err)
         const msg = getAiMsg()
         if (msg) {
           msg.loading = false
-          msg.content = '请求失败，请稍后重试。'
+          if (!msg.content) {
+            msg.content = '请求失败，请稍后重试。'
+          }
         }
-        throw err
+        // Don't throw — prevent automatic retry since backend already handles errors via SSE
       },
     })
   } finally {
@@ -658,6 +766,20 @@ function openDocumentPreview(citation, allCitations) {
 
 .conversation-item:hover .delete-btn {
   opacity: 1;
+}
+
+.loading-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.loading-more .el-icon {
+  font-size: 14px;
 }
 
 /* Toggle Button */
@@ -898,6 +1020,74 @@ function openDocumentPreview(citation, allCitations) {
   line-height: 1.6;
   border-top: 1px solid var(--color-border-light);
   background: var(--color-bg-card);
+}
+
+/* Sources Box */
+.sources-box {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.sources-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  background: var(--color-bg-subtle);
+  user-select: none;
+}
+
+.sources-header:hover {
+  background: var(--color-bg-hover);
+}
+
+.sources-body {
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.source-item {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-sm);
+}
+
+.source-item.clickable {
+  cursor: pointer;
+}
+
+.source-item.clickable:hover {
+  background: var(--color-bg-hover);
+}
+
+.source-doc {
+  font-size: 12px;
+  color: var(--color-primary);
+  font-weight: 500;
+}
+
+.source-title {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.source-snippet {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Citations Box */

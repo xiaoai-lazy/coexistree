@@ -2,6 +2,7 @@ package io.github.xiaoailazy.coexistree.indexer.llm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
+import io.github.xiaoailazy.coexistree.indexer.tree.TreeSimplifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +16,8 @@ class PromptTemplateServiceTest {
     void setUp() {
         ObjectMapper objectMapper = new ObjectMapper();
         JsonUtils jsonUtils = new JsonUtils(objectMapper);
-        promptTemplateService = new PromptTemplateService(jsonUtils);
+        TreeSimplifier treeSimplifier = new TreeSimplifier();
+        promptTemplateService = new PromptTemplateService(jsonUtils, treeSimplifier);
     }
 
     @Test

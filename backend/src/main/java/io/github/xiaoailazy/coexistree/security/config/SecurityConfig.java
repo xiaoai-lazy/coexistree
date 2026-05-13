@@ -31,6 +31,18 @@ public class SecurityConfig {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
     }
 
+    /**
+     * SecurityContext Strategy: MODE_THREADLOCAL (default)
+     * 
+     * We use the default MODE_THREADLOCAL strategy instead of MODE_GLOBAL to ensure
+     * proper request isolation. Each request thread maintains its own SecurityContext,
+     * preventing global state pollution and potential security issues in concurrent scenarios.
+     * 
+     * For SSE/async dispatch support, SecurityContext is explicitly saved to and restored from
+     * request attributes in JwtAuthenticationFilter, which is more reliable than relying on
+     * global state or thread-local propagation across async boundaries.
+     */
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
@@ -40,7 +52,6 @@ public class SecurityConfig {
                 .requestMatchers("/").permitAll()
                 .requestMatchers("/api/v1/auth/login").permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/error").permitAll()
                 .requestMatchers("/actuator/health").permitAll()
                 // Swagger UI and OpenAPI docs - allow public access
@@ -53,8 +64,7 @@ public class SecurityConfig {
                 .authenticationEntryPoint(authenticationEntryPoint())
                 .accessDeniedHandler(accessDeniedHandler())
             )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-            .headers(headers -> headers.frameOptions(frameOptions -> frameOptions.sameOrigin()));
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

@@ -14,6 +14,9 @@ export const SSE_EVENT_TYPES = {
   // 普通回答
   ANSWER: 'answer',
 
+  // 检索候选资料
+  SOURCES: 'sources',
+
   // 引用来源
   CITATIONS: 'citations',
 
@@ -53,24 +56,4 @@ export const STAGE_LABELS = {
   CONSISTENCY: '正在检查业务规则...',
   IMPACT: '正在分析模块依赖...',
   HISTORY: '正在验证历史背景...'
-}
-
-/**
- * 评估类别映射
- */
-export const EVALUATION_CATEGORIES = {
-  CONFLICT: '功能冲突检测',
-  CONSISTENCY: '业务规则一致性',
-  IMPACT: '影响范围分析',
-  HISTORY: '历史背景验证'
-}
-
-/**
- * 风险等级
- */
-export const RISK_LEVELS = {
-  HIGH: 'high',
-  MEDIUM: 'medium',
-  LOW: 'low',
-  NONE: 'none'
 }

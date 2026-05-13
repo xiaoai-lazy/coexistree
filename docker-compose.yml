@@ -1,5 +1,5 @@
 # CoExistree Docker Compose 配置
-# 生产环境：Nginx + 后端服务
+# 生产环境：PostgreSQL + 后端服务 + Nginx
 # 用法: docker compose up -d
 #
 # SSL 证书配置说明：
@@ -9,6 +9,25 @@
 # 4. 启动服务：docker compose up -d
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: coexistree-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-coexistree}
+      POSTGRES_USER: ${DB_USERNAME:-coexistree}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - coexistree
+
   nginx:
     build:
       context: .
@@ -28,8 +47,6 @@ services:
       # 将宿主机 ./nginx/ssl/ 挂载到容器的 /etc/nginx/ssl/
       # 需要包含：server.crt (证书) 和 server.key (私钥)
       - ./nginx/ssl:/etc/nginx/ssl:ro
-      # 文档目录
-      - ./data/docs:/data/docs:ro
     depends_on:
       - backend
     networks:
@@ -46,7 +63,7 @@ services:
     # 以 root 用户运行，确保对挂载目录有写权限
     user: "0:0"
     environment:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
       - SERVER_PORT=8080
       - JWT_SECRET=${JWT_SECRET}
       - JWT_EXPIRATION=${JWT_EXPIRATION:-86400000}
@@ -54,9 +71,9 @@ services:
       - LLM_API_KEY=${LLM_API_KEY:-}
       - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
       - LLM_BASE_URL=${LLM_BASE_URL:-https://api.openai.com/v1}
-      - DB_USERNAME=${DB_USERNAME:-sa}
-      - DB_PASSWORD=${DB_PASSWORD:-}
-      - STORAGE_PATH=/app/data
+      - DB_URL=${DB_URL:-jdbc:postgresql://postgres:5432/${POSTGRES_DB:-coexistree}}
+      - DB_USERNAME=${DB_USERNAME:-coexistree}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - LOG_PATH=/app/data/logs
       - JAVA_OPTS=${JAVA_OPTS:--Xms512m -Xmx2g -XX:+UseG1GC}
       # CORS 跨域配置（逗号分隔多个域名）
@@ -64,6 +81,9 @@ services:
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173}
     volumes:
       - ./data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     # 健康检查
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
@@ -74,9 +94,12 @@ services:
     networks:
       - coexistree
 
+volumes:
+  postgres-data:
+
 networks:
   coexistree:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        - subnet: 172.21.0.0/16

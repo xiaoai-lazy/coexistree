@@ -2,7 +2,7 @@
 <configuration>
     <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
 
-    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"/>
+    <property name="LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{correlationId:-}] [%X{userId:-}] [%X{systemId:-}] [%X{conversationId:-}] %logger{36} - %msg%n"/>
 
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
@@ -38,6 +38,14 @@
         <root level="INFO">
             <appender-ref ref="CONSOLE"/>
             <appender-ref ref="FILE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="test">
+        <logger name="io.github.xiaoailazy.coexistree" level="INFO"/>
+        <logger name="dev.langchain4j" level="DEBUG"/>
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
         </root>
     </springProfile>
 

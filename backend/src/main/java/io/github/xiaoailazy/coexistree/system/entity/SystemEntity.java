@@ -18,7 +18,7 @@ public class SystemEntity {
     @Column(name = "system_name", nullable = false, length = 128)
     private String systemName;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String description;
 
     @Column(nullable = false, length = 32)

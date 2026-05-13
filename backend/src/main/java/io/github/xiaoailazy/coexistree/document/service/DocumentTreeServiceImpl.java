@@ -2,15 +2,14 @@ package io.github.xiaoailazy.coexistree.document.service;
 
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
+import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentTreeEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentTreeRepository;
 import io.github.xiaoailazy.coexistree.indexer.model.DocumentTree;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
-import io.github.xiaoailazy.coexistree.indexer.storage.TreeFileLoader;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Path;
 import java.util.List;
 
 @Slf4j
@@ -18,19 +17,18 @@ import java.util.List;
 public class DocumentTreeServiceImpl implements DocumentTreeService {
 
     private final DocumentTreeRepository documentTreeRepository;
-    private final TreeFileLoader treeFileLoader;
+    private final JsonUtils jsonUtils;
 
     public DocumentTreeServiceImpl(DocumentTreeRepository documentTreeRepository,
-                                   TreeFileLoader treeFileLoader) {
+                                   JsonUtils jsonUtils) {
         this.documentTreeRepository = documentTreeRepository;
-        this.treeFileLoader = treeFileLoader;
+        this.jsonUtils = jsonUtils;
     }
 
     @Override
     public String getNodeText(Long documentId, String nodeId) {
         log.debug("获取节点文本, documentId={}, nodeId={}", documentId, nodeId);
 
-        // 11.2.1.1 查询 document_trees 获取 tree_file_path
         DocumentTreeEntity treeEntity = documentTreeRepository.findByDocumentId(documentId)
                 .orElseThrow(() -> {
                     log.warn("文档树不存在, documentId={}", documentId);
@@ -38,9 +36,7 @@ public class DocumentTreeServiceImpl implements DocumentTreeService {
                             "Document tree not found for documentId: " + documentId);
                 });
 
-        // 11.2.1.2 加载文档树 JSON 文件
-        Path treePath = Path.of(treeEntity.getTreeFilePath());
-        DocumentTree documentTree = treeFileLoader.load(treePath);
+        DocumentTree documentTree = jsonUtils.fromJson(treeEntity.getTreeJson(), DocumentTree.class);
 
         // 11.2.1.3 查找节点（递归遍历）
         TreeNode targetNode = findNodeById(documentTree.getStructure(), nodeId);

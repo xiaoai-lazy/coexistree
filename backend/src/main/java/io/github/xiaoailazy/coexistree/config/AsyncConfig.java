@@ -1,9 +1,11 @@
 package io.github.xiaoailazy.coexistree.config;
 
+import org.slf4j.MDC;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -28,7 +30,20 @@ public class AsyncConfig {
         ThreadFactory factory = Thread.ofVirtual()
                 .name("document-task-", 1)
                 .factory();
-        return Executors.newThreadPerTaskExecutor(factory);
+        Executor executor = Executors.newThreadPerTaskExecutor(factory);
+
+        // Wrap with MDC propagation from parent thread
+        return (Runnable task) -> executor.execute(() -> {
+            Map<String, String> mdcContext = MDC.getCopyOfContextMap();
+            if (mdcContext != null) {
+                MDC.setContextMap(mdcContext);
+            }
+            try {
+                task.run();
+            } finally {
+                MDC.clear();
+            }
+        });
     }
 }
 

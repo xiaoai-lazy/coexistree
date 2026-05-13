@@ -1,8 +1,9 @@
 package io.github.xiaoailazy.coexistree.indexer.llm;
 
-import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
-import io.github.xiaoailazy.coexistree.chat.entity.MessageEntity;
+import io.github.xiaoailazy.coexistree.indexer.model.SimplifiedTreeNode;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
+import io.github.xiaoailazy.coexistree.indexer.tree.TreeSimplifier;
+import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,9 +12,11 @@ import java.util.List;
 public class PromptTemplateService {
 
     private final JsonUtils jsonUtils;
+    private final TreeSimplifier treeSimplifier;
 
-    public PromptTemplateService(JsonUtils jsonUtils) {
+    public PromptTemplateService(JsonUtils jsonUtils, TreeSimplifier treeSimplifier) {
         this.jsonUtils = jsonUtils;
+        this.treeSimplifier = treeSimplifier;
     }
 
     public String buildTreeSearchPrompt(String query, List<TreeNode> structure) {
@@ -33,25 +36,27 @@ public class PromptTemplateService {
                     "node_list": ["node_id_1", "node_id_2", ..., "node_id_n"]
                 }
                 Directly return the final JSON structure. Do not output anything else."""
-                .formatted(query, jsonUtils.toJson(structure));
+                .formatted(query, jsonUtils.toJson(treeSimplifier.simplify(structure)));
     }
 
     public String buildAnswerPrompt(String query, String relevantContent) {
         return "Question: " + query + "\nContext:\n" + relevantContent;
     }
 
-    public String buildTitleGenerationPrompt(List<MessageEntity> messages) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are an expert in generating concise titles for conversations.\n");
-        sb.append("Please generate a very short title (max 10 Chinese characters) that accurately summarizes the main topic.\n\n");
-        sb.append("Conversation content:\n");
+    public String buildTitleGenerationPrompt(String firstUserMessage) {
+        return """
+                You are an expert in generating concise titles for conversations.
+                Please generate a very short title (max 10 Chinese characters) that accurately summarizes the main topic.
 
-        for (MessageEntity msg : messages) {
-            sb.append(msg.getRole()).append(": ").append(msg.getContent()).append("\n");
-        }
+                Based on the following conversation topic: "%s", generate a concise title.
 
-        sb.append("\nReturn only the title, no quotes or extra text.");
-        return sb.toString();
+                Return only the title, no quotes or extra text.
+                """.formatted(truncate(firstUserMessage, 200));
+    }
+
+    private String truncate(String s, int maxLen) {
+        if (s == null) return "";
+        return s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
     }
 
     public String buildBaselinePrompt(String systemName, String systemCode, String docTreeJson) {

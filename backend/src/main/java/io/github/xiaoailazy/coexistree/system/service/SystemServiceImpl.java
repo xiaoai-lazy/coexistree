@@ -174,7 +174,7 @@ public class SystemServiceImpl implements SystemService {
         SystemEntity system = getEntity(systemId);
 
         // Validate new owner exists
-        UserEntity newOwner = userRepository.findById(newOwnerId)
+        userRepository.findById(newOwnerId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND, "用户不存在"));
 
         // Find current owner mapping

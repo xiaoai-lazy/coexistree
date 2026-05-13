@@ -5,14 +5,10 @@ spring:
   application:
     name: coexistree
   datasource:
-    url: jdbc:h2:file:./data/h2/coexistree;MODE=MySQL;DB_CLOSE_DELAY=-1
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/coexistree}
+    username: ${DB_USERNAME:coexistree}
+    password: ${DB_PASSWORD:coexistree}
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate
@@ -31,12 +27,6 @@ logging:
   level:
     root: INFO
     io.github.xiaoailazy.coexistree: INFO
-
-app:
-  storage:
-    doc-root: ./data/docs
-    tree-root: ./data/trees
-    system-tree-root: ./data/system-trees
 
 llm:
   openai:

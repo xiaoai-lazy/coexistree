@@ -1,12 +1,12 @@
 package io.github.xiaoailazy.coexistree.document.service;
 
+import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
-import io.github.xiaoailazy.coexistree.config.AppStorageProperties;
+import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentTreeRepository;
-import io.github.xiaoailazy.coexistree.document.storage.MarkdownFileStorageService;
 import io.github.xiaoailazy.coexistree.document.event.DocumentUploadedEvent;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
@@ -28,13 +28,12 @@ import org.mockito.quality.Strictness;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.mock.web.MockMultipartFile;
 
-import java.nio.file.Path;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -49,17 +48,15 @@ class DocumentServiceTest {
     @Mock
     private SystemService systemService;
     @Mock
-    private MarkdownFileStorageService markdownFileStorageService;
-    @Mock
     private SystemKnowledgeTreeRepository systemKnowledgeTreeRepository;
     @Mock
     private ApplicationEventPublisher eventPublisher;
     @Mock
+    private DocumentAccessService documentAccessService;
+    @Mock
     private SystemUserMappingRepository systemUserMappingRepository;
     @Mock
-    private io.github.xiaoailazy.coexistree.indexer.storage.TreeFileLoader treeFileLoader;
-
-    private final AppStorageProperties storageProperties = new AppStorageProperties("./data/docs", "./data/trees", "./data/system-trees");
+    private JsonUtils jsonUtils;
 
     private SecurityUserDetails createOwnerUser() {
         UserEntity user = new UserEntity();
@@ -87,12 +84,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -109,7 +105,7 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.empty());
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -125,8 +121,7 @@ class DocumentServiceTest {
         assertThat(response.systemId()).isEqualTo(1L);
         assertThat(response.parseStatus()).isEqualTo("PENDING");
 
-        verify(markdownFileStorageService).save(any(Path.class), any());
-        verify(documentRepository, times(2)).save(any(DocumentEntity.class));
+        verify(documentRepository).save(any(DocumentEntity.class));
 
         ArgumentCaptor<DocumentUploadedEvent> eventCaptor = ArgumentCaptor.forClass(DocumentUploadedEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
@@ -139,12 +134,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -166,12 +160,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         DocumentEntity entity = new DocumentEntity();
@@ -196,12 +189,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         when(documentRepository.findById(999L)).thenReturn(java.util.Optional.empty());
@@ -216,12 +208,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         DocumentEntity entity1 = new DocumentEntity();
@@ -242,6 +233,7 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(documentRepository.findBySystemId(1L)).thenReturn(java.util.List.of(entity1, entity2));
+        when(documentAccessService.getViewLevel(1L, userDetails)).thenReturn(5);
 
         java.util.List<DocumentResponse> responses = documentService.listBySystem(1L, userDetails);
 
@@ -256,12 +248,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -278,7 +269,7 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.empty());
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -290,7 +281,7 @@ class DocumentServiceTest {
 
         documentService.upload(file, 1L, 1, userDetails);
 
-        verify(documentRepository, times(2)).save(any(DocumentEntity.class));
+        verify(documentRepository).save(any(DocumentEntity.class));
     }
 
     @Test
@@ -299,12 +290,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -325,7 +315,7 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.of(treeEntity));
+        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -337,7 +327,7 @@ class DocumentServiceTest {
 
         documentService.upload(file, 1L, 1, userDetails);
 
-        verify(documentRepository, times(2)).save(any(DocumentEntity.class));
+        verify(documentRepository).save(any(DocumentEntity.class));
     }
 
     @Test
@@ -346,12 +336,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -372,7 +361,7 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.of(treeEntity));
+        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -384,7 +373,7 @@ class DocumentServiceTest {
 
         documentService.upload(file, 1L, 1, userDetails);
 
-        verify(documentRepository, times(2)).save(any(DocumentEntity.class));
+        verify(documentRepository).save(any(DocumentEntity.class));
     }
 
     @Test
@@ -393,12 +382,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -419,7 +407,7 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemId(1L)).thenReturn(Optional.of(treeEntity));
+        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -431,7 +419,7 @@ class DocumentServiceTest {
 
         documentService.upload(file, 1L, 1, userDetails);
 
-        verify(documentRepository, times(2)).save(any(DocumentEntity.class));
+        verify(documentRepository).save(any(DocumentEntity.class));
     }
 
     @Test
@@ -441,12 +429,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         Long documentId = 1L;
@@ -455,7 +442,7 @@ class DocumentServiceTest {
         entity.setSystemId(1L);
         entity.setDocName("test.md");
         entity.setOriginalFileName("test.md");
-        entity.setFilePath("/nonexistent/path.md"); // File doesn't exist, should return empty content
+        entity.setFileContent("# Test\ncontent");
         entity.setSecurityLevel(1);
 
         SecurityUserDetails userDetails = createOwnerUser();
@@ -471,7 +458,7 @@ class DocumentServiceTest {
         assertThat(response.docId()).isEqualTo(documentId);
         assertThat(response.docName()).isEqualTo("test.md");
         assertThat(response.contentType()).isEqualTo("text/markdown");
-        assertThat(response.content()).isEqualTo(""); // File doesn't exist
+        assertThat(response.content()).isEqualTo("# Test\ncontent");
         assertThat(response.downloadUrl()).isEqualTo("/api/v1/documents/1/download");
     }
 
@@ -482,12 +469,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         Long documentId = 999L;
@@ -508,12 +494,11 @@ class DocumentServiceTest {
                 documentRepository,
                 documentTreeRepository,
                 systemService,
-                storageProperties,
-                markdownFileStorageService,
                 systemKnowledgeTreeRepository,
+                documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                treeFileLoader
+                jsonUtils
         );
 
         Long documentId = 1L;
@@ -531,9 +516,10 @@ class DocumentServiceTest {
         user.setPasswordHash("password");
         SecurityUserDetails userDetails = new SecurityUserDetails(user);
 
-        // User has no mapping to this system
+        // User has no access to this document
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(entity));
-        when(systemUserMappingRepository.findBySystemIdAndUserId(1L, 1L)).thenReturn(Optional.empty());
+        doThrow(new BusinessException(ErrorCode.PERMISSION_DENIED, "无权限访问此文档"))
+                .when(documentAccessService).requireCanReadDocument(entity, userDetails);
 
         // When & Then
         assertThatThrownBy(() -> documentService.getContent(documentId, userDetails))

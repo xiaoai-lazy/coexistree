@@ -1,7 +1,6 @@
 package io.github.xiaoailazy.coexistree.chat.controller;
 
 import io.github.xiaoailazy.coexistree.chat.dto.ConversationResponse;
-import io.github.xiaoailazy.coexistree.chat.dto.CreateConversationRequest;
 import io.github.xiaoailazy.coexistree.chat.service.ConversationService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "messages")
+@Table(name = "messages_archived")
 public class MessageEntity {
 
     @Id
@@ -18,23 +18,19 @@ public class MessageEntity {
     @Column(name = "role", nullable = false)
     private String role;
 
-    @Lob
-    @Column(name = "content", nullable = false)
+    @Column(name = "content", nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @Column(name = "llm_response_id")
     private String llmResponseId;
 
-    @Lob
-    @Column(name = "thinking")
+    @Column(name = "thinking", columnDefinition = "TEXT")
     private String thinking;
 
-    @Lob
-    @Column(name = "citations")
+    @Column(name = "citations", columnDefinition = "TEXT")
     private String citations;
 
-    @Lob
-    @Column(name = "metadata")
+    @Column(name = "metadata", columnDefinition = "TEXT")
     private String metadata;
 
     @Column(name = "created_at", nullable = false)

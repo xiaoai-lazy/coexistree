@@ -2,7 +2,7 @@
 # 构建 CoExistree 应用
 
 # =================== 阶段 1: 构建后端 ===================
-FROM eclipse-temurin:21-jdk-alpine AS backend-build
+FROM eclipse-temurin:21-jdk AS backend-build
 
 WORKDIR /build
 
@@ -10,12 +10,14 @@ WORKDIR /build
 COPY backend/.mvn ./.mvn
 COPY backend/mvnw backend/pom.xml ./
 
-# 下载依赖（利用缓存层）
-RUN ./mvnw dependency:go-offline -B
+# 下载依赖（缓存层，依赖不变则复用）
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw dependency:go-offline -B -s .mvn/docker-settings.xml
 
 # 复制源码并构建
 COPY backend/src ./src
-RUN ./mvnw clean package -DskipTests -B && \
+RUN --mount=type=cache,target=/root/.m2 \
+    ./mvnw clean package -DskipTests -B -s .mvn/docker-settings.xml && \
     mkdir -p target/dependency && \
     (cd target/dependency; jar -xf ../*.jar)
 
@@ -24,25 +26,26 @@ FROM node:20-alpine AS frontend-build
 
 WORKDIR /build
 
-# 复制依赖配置
-COPY frontend/package*.json ./
-RUN npm ci
+# 复制依赖配置并安装（npm 缓存复用）
+COPY frontend/package*.json frontend/package-lock.json* ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --cache=/root/.npm
 
 # 复制源码并构建
 COPY frontend/ ./
 RUN npm run build
 
 # =================== 阶段 3: 后端运行时镜像 ===================
-FROM eclipse-temurin:21-jre-alpine AS backend-runtime
+FROM eclipse-temurin:21-jre AS backend-runtime
 
 # 安装必要的工具
-RUN apk add --no-cache curl tzdata && \
+RUN apt-get update && apt-get install -y --no-install-recommends curl tzdata && \
     cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
     echo "Asia/Shanghai" > /etc/timezone && \
-    apk del tzdata
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 创建应用用户
-RUN addgroup -S coexistree && adduser -S coexistree -G coexistree
+RUN groupadd -r coexistree && useradd -r -g coexistree coexistree
 
 # 工作目录
 WORKDIR /app
@@ -52,7 +55,7 @@ COPY --from=backend-build /build/target/dependency/BOOT-INF/lib ./lib
 COPY --from=backend-build /build/target/dependency/META-INF ./META-INF
 COPY --from=backend-build /build/target/dependency/BOOT-INF/classes ./classes
 
-# 创建数据目录并设置权限
+# 创建运行时数据目录并设置权限
 RUN mkdir -p /app/data && chown -R coexistree:coexistree /app
 
 # 切换到非 root 用户

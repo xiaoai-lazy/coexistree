@@ -1,6 +1,7 @@
 package io.github.xiaoailazy.coexistree.chat.repository;
 
 import io.github.xiaoailazy.coexistree.chat.entity.ConversationEntity;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -19,6 +20,11 @@ class ConversationRepositoryIntegrationTest {
 
     @Autowired
     private ConversationRepository conversationRepository;
+
+    @BeforeEach
+    void setUp() {
+        conversationRepository.deleteAll();
+    }
 
     private ConversationEntity createConversation(String conversationId, Long systemId, String title) {
         ConversationEntity conv = new ConversationEntity();

@@ -21,8 +21,8 @@ public class DocumentEntity {
     @Column(name = "original_file_name", nullable = false, length = 255)
     private String originalFileName;
 
-    @Column(name = "file_path", nullable = false, length = 512)
-    private String filePath;
+    @Column(name = "file_content", nullable = false, columnDefinition = "TEXT")
+    private String fileContent;
 
     @Column(name = "file_hash", length = 128)
     private String fileHash;
@@ -36,8 +36,7 @@ public class DocumentEntity {
     @Column(name = "parse_status", nullable = false, length = 32)
     private String parseStatus;
 
-    @Lob
-    @Column(name = "parse_error")
+    @Column(name = "parse_error", columnDefinition = "TEXT")
     private String parseError;
 
     @Column(name = "doc_type", nullable = false, length = 32)
@@ -63,8 +62,8 @@ public class DocumentEntity {
     public void setDocName(String docName) { this.docName = docName; }
     public String getOriginalFileName() { return originalFileName; }
     public void setOriginalFileName(String originalFileName) { this.originalFileName = originalFileName; }
-    public String getFilePath() { return filePath; }
-    public void setFilePath(String filePath) { this.filePath = filePath; }
+    public String getFileContent() { return fileContent; }
+    public void setFileContent(String fileContent) { this.fileContent = fileContent; }
     public String getFileHash() { return fileHash; }
     public void setFileHash(String fileHash) { this.fileHash = fileHash; }
     public String getContentHash() { return contentHash; }

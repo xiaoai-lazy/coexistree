@@ -9,7 +9,8 @@ public record SseEvent(
         String type,
         String status,
         String content,
-        List<CitationDto> citations
+        List<CitationDto> citations,
+        List<SourceDto> sources
 ) {
     public record CitationDto(
             String path,
@@ -43,28 +44,43 @@ public record SseEvent(
         }
     }
 
+    public record SourceDto(
+            Long docId,
+            String docName,
+            String nodeId,
+            String title,
+            String path,
+            String snippet,
+            Integer lineNum,
+            Integer level
+    ) {}
+
     public static SseEvent stage(String stage, String status) {
-        return new SseEvent("stage", status, stage, null);
+        return new SseEvent("stage", status, stage, null, null);
     }
 
     public static SseEvent thinking(String content) {
-        return new SseEvent("thinking", null, content, null);
+        return new SseEvent("thinking", null, content, null, null);
     }
 
     public static SseEvent answer(String content) {
-        return new SseEvent("answer", null, content, null);
+        return new SseEvent("answer", null, content, null, null);
     }
 
     public static SseEvent citations(List<Citation> citations) {
         List<CitationDto> dtos = citations.stream().map(CitationDto::from).toList();
-        return new SseEvent("citations", null, null, dtos);
+        return new SseEvent("citations", null, null, dtos, null);
+    }
+
+    public static SseEvent sources(List<SourceDto> sources) {
+        return new SseEvent("sources", "success", null, null, sources);
     }
 
     public static SseEvent done(boolean grounded) {
-        return new SseEvent("done", grounded ? "grounded" : "not_grounded", null, null);
+        return new SseEvent("done", grounded ? "grounded" : "not_grounded", null, null, null);
     }
 
     public static SseEvent error(String message) {
-        return new SseEvent("error", null, message, null);
+        return new SseEvent("error", null, message, null, null);
     }
 }

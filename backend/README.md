@@ -7,7 +7,7 @@ CoExistree Backend is a Spring Boot application that powers the system lifecycle
 - **Java 21** - Modern Java with virtual threads support
 - **Spring Boot 3.5** - Application framework
 - **Spring Data JPA** - Data persistence
-- **H2 Database** - Embedded database for development
+- **PostgreSQL** - Relational database
 - **Flyway** - Database migration
 - **Volcengine Ark SDK** - LLM integration (ByteDance)
 - **Lombok** - Boilerplate reduction
@@ -92,13 +92,10 @@ server:
 
 spring:
   datasource:
-    url: jdbc:h2:file:./data/h2/coexistree;MODE=MySQL;AUTO_SERVER=TRUE
-    username: sa
-    password:
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    url: jdbc:postgresql://localhost:5432/coexistree
+    username: coexistree
+    password: coexistree
+    driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
       ddl-auto: validate
@@ -148,10 +145,6 @@ mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev
 ### Access Points
 
 - Application: http://localhost:8080
-- H2 Console: http://localhost:8080/h2-console
-  - JDBC URL: `jdbc:h2:file:./data/h2/coexistree`
-  - Username: `sa`
-  - Password: (empty)
 
 ## API Overview
 

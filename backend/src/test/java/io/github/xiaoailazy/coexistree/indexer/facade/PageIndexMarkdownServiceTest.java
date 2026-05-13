@@ -30,7 +30,7 @@ class PageIndexMarkdownServiceTest {
             new MarkdownNodeTextAssembler(),
             new PageIndexTreeBuilder(),
             new NodeSummaryService(llmClient),
-            new DocumentSummaryService(llmClient, new io.github.xiaoailazy.coexistree.shared.util.JsonUtils(new io.github.xiaoailazy.coexistree.config.JacksonConfig().objectMapper())),
+            new DocumentSummaryService(llmClient, new io.github.xiaoailazy.coexistree.shared.util.JsonUtils(new io.github.xiaoailazy.coexistree.config.JacksonConfig().objectMapper()), new io.github.xiaoailazy.coexistree.indexer.tree.TreeSimplifier()),
             new TreeNodeCounter()
     );
 

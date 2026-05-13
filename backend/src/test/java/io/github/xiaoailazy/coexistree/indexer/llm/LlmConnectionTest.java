@@ -7,11 +7,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Slf4j
 @SpringBootTest
+@ActiveProfiles("test")
 class LlmConnectionTest {
 
     @Autowired
@@ -54,37 +56,5 @@ class LlmConnectionTest {
         assertThat(response.content().toLowerCase())
                 .as("Response should contain 'pong'")
                 .contains("pong");
-    }
-
-    @Test
-    void shouldStreamResponseFromLlm() {
-        log.info("Testing LLM streaming with baseUrl={}, model={}",
-                llmProperties.getBaseUrl(), llmProperties.getModel());
-
-        StringBuilder receivedText = new StringBuilder();
-
-        String responseId = llmClient.chatStream(
-                "Say 'streaming works' and nothing else",
-                null,
-                0.3,
-                null,
-                thinking -> log.debug("Thinking: {}", thinking),
-                text -> {
-                    receivedText.append(text);
-                    log.debug("Received chunk: {}", text);
-                }
-        );
-
-        String fullResponse = receivedText.toString();
-        log.info("Response ID: {}", responseId);
-        log.info("Full streaming response: {}", fullResponse);
-
-        assertThat(fullResponse)
-                .as("Streaming should return non-empty content")
-                .isNotBlank();
-
-        assertThat(fullResponse.toLowerCase())
-                .as("Response should contain expected text")
-                .contains("streaming");
     }
 }

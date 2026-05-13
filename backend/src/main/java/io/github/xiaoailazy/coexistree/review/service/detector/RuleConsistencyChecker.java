@@ -1,6 +1,5 @@
 package io.github.xiaoailazy.coexistree.review.service.detector;
 
-import io.github.xiaoailazy.coexistree.review.model.EvaluationReport;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 
 /**

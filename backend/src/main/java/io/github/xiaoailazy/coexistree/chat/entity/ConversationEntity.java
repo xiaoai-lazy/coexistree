@@ -24,6 +24,10 @@ public class ConversationEntity {
     @Column(name = "last_response_id")
     private String lastResponseId;
 
+    @Version
+    @Column(name = "version")
+    private Long version;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -40,6 +44,8 @@ public class ConversationEntity {
     public void setTitle(String title) { this.title = title; }
     public String getLastResponseId() { return lastResponseId; }
     public void setLastResponseId(String lastResponseId) { this.lastResponseId = lastResponseId; }
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

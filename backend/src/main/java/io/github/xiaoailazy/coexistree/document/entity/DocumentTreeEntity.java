@@ -15,11 +15,10 @@ public class DocumentTreeEntity {
     @Column(name = "document_id", nullable = false, unique = true)
     private Long documentId;
 
-    @Column(name = "tree_file_path", nullable = false, length = 512)
-    private String treeFilePath;
+    @Column(name = "tree_json", nullable = false, columnDefinition = "TEXT")
+    private String treeJson;
 
-    @Lob
-    @Column(name = "doc_description")
+    @Column(name = "doc_description", columnDefinition = "TEXT")
     private String docDescription;
 
     @Column(name = "node_count", nullable = false)
@@ -47,12 +46,12 @@ public class DocumentTreeEntity {
         this.documentId = documentId;
     }
 
-    public String getTreeFilePath() {
-        return treeFilePath;
+    public String getTreeJson() {
+        return treeJson;
     }
 
-    public void setTreeFilePath(String treeFilePath) {
-        this.treeFilePath = treeFilePath;
+    public void setTreeJson(String treeJson) {
+        this.treeJson = treeJson;
     }
 
     public String getDocDescription() {

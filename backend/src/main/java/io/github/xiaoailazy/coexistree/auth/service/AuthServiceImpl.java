@@ -1,5 +1,6 @@
 package io.github.xiaoailazy.coexistree.auth.service;
 
+import io.github.xiaoailazy.coexistree.audit.service.AuditLogger;
 import io.github.xiaoailazy.coexistree.auth.dto.ChangePasswordRequest;
 import io.github.xiaoailazy.coexistree.auth.dto.LoginRequest;
 import io.github.xiaoailazy.coexistree.auth.dto.LoginResponse;
@@ -21,11 +22,13 @@ public class AuthServiceImpl implements AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final AuditLogger auditLogger;
 
-    public AuthServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, AuditLogger auditLogger) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.auditLogger = auditLogger;
     }
 
     @Override
@@ -42,6 +45,8 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+
+        auditLogger.logLogin(user.getId(), user.getUsername(), null, true);
 
         return new LoginResponse(
                 token,

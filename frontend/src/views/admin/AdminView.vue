@@ -30,16 +30,20 @@
 
       <!-- 成员概览 -->
       <MemberOverview v-if="activeTab === 'members'" />
+
+      <!-- 会话审计 -->
+      <SessionAuditView v-if="activeTab === 'session-audit'" />
     </main>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { UserFilled, OfficeBuilding, User } from '@element-plus/icons-vue'
+import { UserFilled, OfficeBuilding, User, Timer } from '@element-plus/icons-vue'
 import UserManagement from './components/UserManagement.vue'
 import SystemManagement from './components/SystemManagement.vue'
 import MemberOverview from './components/MemberOverview.vue'
+import SessionAuditView from './components/SessionAuditView.vue'
 
 const activeTab = ref('users')
 
@@ -47,6 +51,7 @@ const navItems = [
   { key: 'users', label: '用户管理', icon: UserFilled },
   { key: 'systems', label: '系统管理', icon: OfficeBuilding },
   { key: 'members', label: '成员概览', icon: User },
+  { key: 'session-audit', label: '会话审计', icon: Timer },
 ]
 </script>
 

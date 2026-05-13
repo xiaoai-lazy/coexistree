@@ -21,7 +21,7 @@ class SystemKnowledgeTreeRepositoryIntegrationTest {
     private SystemKnowledgeTreeEntity createTree(Long systemId, int version, String status) {
         SystemKnowledgeTreeEntity tree = new SystemKnowledgeTreeEntity();
         tree.setSystemId(systemId);
-        tree.setTreeFilePath("/data/trees/" + systemId + "/tree.json");
+        tree.setTreeJson("{\"structure\":[]}");
         tree.setTreeVersion(version);
         tree.setNodeCount(10);
         tree.setTreeStatus(status);

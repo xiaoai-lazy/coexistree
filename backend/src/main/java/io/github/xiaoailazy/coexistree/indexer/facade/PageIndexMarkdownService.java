@@ -55,6 +55,14 @@ public class PageIndexMarkdownService {
         String markdown = read(markdownPath);
         log.debug("读取Markdown文件完成, 内容长度={}", markdown.length());
 
+        String fileName = markdownPath.getFileName().toString();
+        String docName = fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
+        return buildTree(markdown, docName, options);
+    }
+
+    public DocumentTree buildTree(String markdown, String docName, PageIndexBuildOptions options) {
+        log.info("开始构建文档树, docName={}", docName);
+
         List<RawHeaderNode> headers = markdownNodeExtractor.extract(markdown);
         log.debug("提取标题节点完成, 标题数量={}", headers.size());
 
@@ -68,8 +76,6 @@ public class PageIndexMarkdownService {
         }
 
         DocumentTree tree = new DocumentTree();
-        String fileName = markdownPath.getFileName().toString();
-        String docName = fileName.contains(".") ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
         tree.setDocName(docName);
         tree.setStructure(pageIndexTreeBuilder.build(flatNodes));
         log.debug("构建树结构完成, 根节点数量={}", tree.getStructure().size());

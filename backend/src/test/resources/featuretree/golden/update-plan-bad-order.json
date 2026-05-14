@@ -1,0 +1,35 @@
+{
+  "changeRecordId": 1,
+  "baseTreeVersion": 1,
+  "operations": [
+    {
+      "op": "ADD_FEATURE",
+      "moduleNodeId": "module-chat",
+      "feature": {
+        "nodeId": "feature-chat-source-retrieval",
+        "nodeType": "FEATURE",
+        "title": "来源检索",
+        "summary": "功能说明",
+        "currentState": {
+          "requirementSummary": "r",
+          "confidence": "HIGH",
+          "status": "ACTIVE",
+          "updatedAt": "2026-05-13T10:00:00Z"
+        },
+        "evidenceSources": [],
+        "changeRefs": [],
+        "nodes": []
+      }
+    },
+    {
+      "op": "ADD_MODULE",
+      "module": {
+        "nodeId": "module-chat",
+        "nodeType": "MODULE",
+        "title": "智能问答",
+        "summary": "模块说明",
+        "nodes": []
+      }
+    }
+  ]
+}

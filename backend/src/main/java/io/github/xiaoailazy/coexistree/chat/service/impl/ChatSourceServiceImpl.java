@@ -7,6 +7,7 @@ import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
 import io.github.xiaoailazy.coexistree.document.service.DocumentAccessService;
 import io.github.xiaoailazy.coexistree.document.service.DocumentTreeService;
+import io.github.xiaoailazy.coexistree.featuretree.model.EvidenceSource;
 import io.github.xiaoailazy.coexistree.indexer.model.NodeSource;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeSearchResult;
@@ -42,8 +43,7 @@ public class ChatSourceServiceImpl implements ChatSourceService {
             TreeSearchService treeSearchService,
             DocumentRepository documentRepository,
             DocumentTreeService documentTreeService,
-            DocumentAccessService documentAccessService
-    ) {
+            DocumentAccessService documentAccessService) {
         this.systemKnowledgeTreeService = systemKnowledgeTreeService;
         this.treeSearchService = treeSearchService;
         this.documentRepository = documentRepository;
@@ -75,15 +75,12 @@ public class ChatSourceServiceImpl implements ChatSourceService {
             Set<String> seen = new HashSet<>();
             for (String nodeId : searchResult.getNodeList()) {
                 TreeNode node = nodeById.get(nodeId);
-                if (node == null || node.getSources() == null) {
+                if (node == null) {
                     continue;
                 }
-
-                for (NodeSource source : node.getSources()) {
-                    if (sources.size() >= MAX_SOURCES) {
-                        return sources;
-                    }
-                    toSourceDto(source, node, structure, userDetails, seen).ifPresent(sources::add);
+                appendSourcesFromNode(node, structure, userDetails, seen, sources);
+                if (sources.size() >= MAX_SOURCES) {
+                    return sources;
                 }
             }
             return sources;
@@ -93,13 +90,49 @@ public class ChatSourceServiceImpl implements ChatSourceService {
         }
     }
 
+    /**
+     * 优先使用 FEATURE 等节点上的 {@code evidenceSources}（经权限过滤后查 {@code document_trees}），否则回退到
+     * {@link TreeNode#getSources()}。
+     */
+    private void appendSourcesFromNode(
+            TreeNode matchedNode,
+            List<TreeNode> structure,
+            SecurityUserDetails userDetails,
+            Set<String> seen,
+            List<SseEvent.SourceDto> sources) {
+        List<EvidenceSource> evidence = matchedNode.getEvidenceSources();
+        if (evidence != null && !evidence.isEmpty()) {
+            for (EvidenceSource es : evidence) {
+                if (sources.size() >= MAX_SOURCES) {
+                    return;
+                }
+                if (es.getDocId() == null || es.getNodeId() == null || es.getNodeId().isBlank()) {
+                    continue;
+                }
+                NodeSource synthetic = new NodeSource();
+                synthetic.setDocId(es.getDocId());
+                synthetic.setNodeId(es.getNodeId());
+                toSourceDto(synthetic, matchedNode, structure, userDetails, seen).ifPresent(sources::add);
+            }
+            return;
+        }
+        if (matchedNode.getSources() == null) {
+            return;
+        }
+        for (NodeSource source : matchedNode.getSources()) {
+            if (sources.size() >= MAX_SOURCES) {
+                return;
+            }
+            toSourceDto(source, matchedNode, structure, userDetails, seen).ifPresent(sources::add);
+        }
+    }
+
     private Optional<SseEvent.SourceDto> toSourceDto(
             NodeSource source,
             TreeNode matchedNode,
             List<TreeNode> structure,
             SecurityUserDetails userDetails,
-            Set<String> seen
-    ) {
+            Set<String> seen) {
         if (source.getDocId() == null || source.getNodeId() == null) {
             return Optional.empty();
         }
@@ -108,18 +141,20 @@ public class ChatSourceServiceImpl implements ChatSourceService {
             return Optional.empty();
         }
 
-        return documentRepository.findById(source.getDocId())
+        return documentRepository
+                .findById(source.getDocId())
                 .filter(document -> documentAccessService.canReadDocument(document, userDetails))
-                .map(document -> new SseEvent.SourceDto(
-                        document.getId(),
-                        document.getDocName(),
-                        source.getNodeId(),
-                        matchedNode.getTitle(),
-                        buildPath(structure, matchedNode.getNodeId()),
-                        snippet(document.getId(), source.getNodeId(), matchedNode),
-                        matchedNode.getLineNum(),
-                        matchedNode.getLevel()
-                ));
+                .map(
+                        document ->
+                                new SseEvent.SourceDto(
+                                        document.getId(),
+                                        document.getDocName(),
+                                        source.getNodeId(),
+                                        matchedNode.getTitle(),
+                                        buildPath(structure, matchedNode.getNodeId()),
+                                        snippet(document.getId(), source.getNodeId(), matchedNode),
+                                        matchedNode.getLineNum(),
+                                        matchedNode.getLevel()));
     }
 
     private void indexNodes(List<TreeNode> nodes, Map<String, TreeNode> nodeById) {

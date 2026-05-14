@@ -8,13 +8,10 @@ import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentTreeEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentTreeRepository;
-import io.github.xiaoailazy.coexistree.knowledge.service.SystemKnowledgeTreeService;
 import io.github.xiaoailazy.coexistree.indexer.facade.PageIndexMarkdownService;
 import io.github.xiaoailazy.coexistree.indexer.model.DocumentTree;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import io.github.xiaoailazy.coexistree.indexer.tree.TreeNodeCounter;
-import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
-import io.github.xiaoailazy.coexistree.system.service.SystemService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,10 +38,6 @@ class DocumentTreeBuildTaskTest {
     @Mock
     private DocProcessLogRepository processLogRepository;
     @Mock
-    private SystemService systemService;
-    @Mock
-    private SystemKnowledgeTreeService systemKnowledgeTreeService;
-    @Mock
     private PageIndexMarkdownService pageIndexMarkdownService;
     @Mock
     private JsonUtils jsonUtils;
@@ -59,8 +52,6 @@ class DocumentTreeBuildTaskTest {
                 documentRepository,
                 documentTreeRepository,
                 processLogRepository,
-                systemService,
-                systemKnowledgeTreeService,
                 pageIndexMarkdownService,
                 jsonUtils,
                 treeNodeCounter
@@ -72,11 +63,9 @@ class DocumentTreeBuildTaskTest {
         // Given
         Long documentId = 1L;
         DocumentEntity document = createDocumentEntity(documentId, 1L, "BASELINE", "/data/test.md");
-        SystemEntity system = createSystemEntity(1L, "ops");
         DocumentTree tree = createDocumentTree("test", List.of(createTreeNode("1", "标题")));
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
-        when(systemService.getEntity(1L)).thenReturn(system);
         when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any())).thenReturn(tree);
         when(treeNodeCounter.count(tree.getStructure())).thenReturn(1);
         when(jsonUtils.toPrettyJson(tree)).thenReturn("{\"structure\":[]}");
@@ -88,7 +77,7 @@ class DocumentTreeBuildTaskTest {
         documentTreeBuildTask.submit(documentId);
 
         // Then
-        verify(systemKnowledgeTreeService).mergeBaseline(eq(documentId), any(), eq(system));
+        verify(pageIndexMarkdownService, times(1)).buildTree(anyString(), anyString(), any());
         assertThat(document.getParseStatus()).isEqualTo("SUCCESS");
     }
 
@@ -97,11 +86,9 @@ class DocumentTreeBuildTaskTest {
         // Given
         Long documentId = 2L;
         DocumentEntity document = createDocumentEntity(documentId, 1L, "CHANGE", "/data/change.md");
-        SystemEntity system = createSystemEntity(1L, "ops");
         DocumentTree tree = createDocumentTree("change", List.of(createTreeNode("1", "变更")));
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
-        when(systemService.getEntity(1L)).thenReturn(system);
         when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any())).thenReturn(tree);
         when(treeNodeCounter.count(tree.getStructure())).thenReturn(1);
         when(jsonUtils.toPrettyJson(tree)).thenReturn("{\"structure\":[]}");
@@ -113,7 +100,22 @@ class DocumentTreeBuildTaskTest {
         documentTreeBuildTask.submit(documentId);
 
         // Then
-        verify(systemKnowledgeTreeService).mergeChange(eq(documentId), any(), eq(system));
+        verify(pageIndexMarkdownService, times(1)).buildTree(anyString(), anyString(), any());
+        assertThat(document.getParseStatus()).isEqualTo("SUCCESS");
+    }
+
+    @Test
+    void testSubmitSkipsTreeBuildWhenChangeRecordPresent() {
+        Long documentId = 42L;
+        DocumentEntity document = createDocumentEntity(documentId, 1L, "BASELINE", "/data/test.md");
+        document.setChangeRecordId(100L);
+
+        when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
+        when(documentRepository.save(any(DocumentEntity.class))).thenAnswer(i -> i.getArgument(0));
+
+        documentTreeBuildTask.submit(documentId);
+
+        verify(pageIndexMarkdownService, never()).buildTree(anyString(), anyString(), any());
         assertThat(document.getParseStatus()).isEqualTo("SUCCESS");
     }
 
@@ -122,11 +124,9 @@ class DocumentTreeBuildTaskTest {
         // Given
         Long documentId = 3L;
         DocumentEntity document = createDocumentEntity(documentId, 1L, "UNKNOWN", "/data/unknown.md");
-        SystemEntity system = createSystemEntity(1L, "ops");
         DocumentTree tree = createDocumentTree("unknown", List.of());
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
-        when(systemService.getEntity(1L)).thenReturn(system);
         when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any())).thenReturn(tree);
         when(treeNodeCounter.count(tree.getStructure())).thenReturn(0);
         when(jsonUtils.toPrettyJson(tree)).thenReturn("{\"structure\":[]}");
@@ -138,8 +138,7 @@ class DocumentTreeBuildTaskTest {
         documentTreeBuildTask.submit(documentId);
 
         // Then
-        verify(systemKnowledgeTreeService, never()).mergeBaseline(any(), any(), any());
-        verify(systemKnowledgeTreeService, never()).mergeChange(any(), any(), any());
+        verify(pageIndexMarkdownService, times(1)).buildTree(anyString(), anyString(), any());
     }
 
     @Test
@@ -162,10 +161,8 @@ class DocumentTreeBuildTaskTest {
         // Given
         Long documentId = 1L;
         DocumentEntity document = createDocumentEntity(documentId, 1L, "BASELINE", "/data/test.md");
-        SystemEntity system = createSystemEntity(1L, "ops");
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
-        when(systemService.getEntity(1L)).thenReturn(system);
         when(documentRepository.save(any(DocumentEntity.class))).thenAnswer(i -> i.getArgument(0));
         when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any()))
                 .thenThrow(new RuntimeException("解析失败"));
@@ -189,7 +186,6 @@ class DocumentTreeBuildTaskTest {
         // Given
         Long documentId = 1L;
         DocumentEntity document = createDocumentEntity(documentId, 1L, "BASELINE", "/data/test.md");
-        SystemEntity system = createSystemEntity(1L, "ops");
         DocumentTree tree = createDocumentTree("test", List.of());
         DocumentTreeEntity existingEntity = new DocumentTreeEntity();
         existingEntity.setId(100L);
@@ -197,7 +193,6 @@ class DocumentTreeBuildTaskTest {
         existingEntity.setCreatedAt(LocalDateTime.now().minusDays(1));
 
         when(documentRepository.findById(documentId)).thenReturn(Optional.of(document));
-        when(systemService.getEntity(1L)).thenReturn(system);
         when(pageIndexMarkdownService.buildTree(anyString(), anyString(), any())).thenReturn(tree);
         when(treeNodeCounter.count(tree.getStructure())).thenReturn(0);
         when(jsonUtils.toPrettyJson(tree)).thenReturn("{\"structure\":[]}");
@@ -224,14 +219,6 @@ class DocumentTreeBuildTaskTest {
         entity.setDocName("test.md");
         entity.setFileContent("# test");
         entity.setOriginalFileName("test.md");
-        return entity;
-    }
-
-    private SystemEntity createSystemEntity(Long id, String systemCode) {
-        SystemEntity entity = new SystemEntity();
-        entity.setId(id);
-        entity.setSystemCode(systemCode);
-        entity.setSystemName("测试系统");
         return entity;
     }
 

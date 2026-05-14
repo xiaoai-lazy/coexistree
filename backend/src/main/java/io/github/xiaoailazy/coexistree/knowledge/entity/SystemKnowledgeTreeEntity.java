@@ -4,6 +4,9 @@ import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 @Entity
 @Table(name = "system_knowledge_trees")
 public class SystemKnowledgeTreeEntity {
@@ -12,10 +15,12 @@ public class SystemKnowledgeTreeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "system_id", nullable = false, unique = true)
+    @Column(name = "system_id", nullable = false)
     private Long systemId;
 
-    @Column(name = "tree_json", nullable = false, columnDefinition = "TEXT")
+    /** 树 JSON（PostgreSQL jsonb） */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tree_json", nullable = false, columnDefinition = "jsonb")
     private String treeJson;
 
     @Column(name = "tree_version", nullable = false)

@@ -48,6 +48,21 @@ public class DocumentEntity {
     @Column(name = "uploaded_by")
     private Long uploadedBy;
 
+    @Column(name = "change_record_id")
+    private Long changeRecordId;
+
+    @Column(name = "doc_content_type", length = 32)
+    private String docContentType;
+
+    @Column(name = "markdown_content", columnDefinition = "TEXT")
+    private String markdownContent;
+
+    @Column(name = "tree_build_status", length = 32)
+    private String treeBuildStatus;
+
+    @Column(name = "merge_status", length = 32)
+    private String mergeStatus;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -84,5 +99,15 @@ public class DocumentEntity {
     public void setSecurityLevel(Integer securityLevel) { this.securityLevel = securityLevel; }
     public Long getUploadedBy() { return uploadedBy; }
     public void setUploadedBy(Long uploadedBy) { this.uploadedBy = uploadedBy; }
+    public Long getChangeRecordId() { return changeRecordId; }
+    public void setChangeRecordId(Long changeRecordId) { this.changeRecordId = changeRecordId; }
+    public String getDocContentType() { return docContentType; }
+    public void setDocContentType(String docContentType) { this.docContentType = docContentType; }
+    public String getMarkdownContent() { return markdownContent; }
+    public void setMarkdownContent(String markdownContent) { this.markdownContent = markdownContent; }
+    public String getTreeBuildStatus() { return treeBuildStatus; }
+    public void setTreeBuildStatus(String treeBuildStatus) { this.treeBuildStatus = treeBuildStatus; }
+    public String getMergeStatus() { return mergeStatus; }
+    public void setMergeStatus(String mergeStatus) { this.mergeStatus = mergeStatus; }
 }
 

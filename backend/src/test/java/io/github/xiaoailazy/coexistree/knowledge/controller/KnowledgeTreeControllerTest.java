@@ -47,7 +47,7 @@ class KnowledgeTreeControllerTest {
         Long systemId = 1L;
         SystemKnowledgeTreeEntity entity = createTestEntity(systemId, 5, 42, "ACTIVE");
 
-        when(systemKnowledgeTreeRepository.findBySystemId(systemId)).thenReturn(Optional.of(entity));
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.of(entity));
 
         ApiResponse<KnowledgeTreeStatusResponse> response = controller.getStatus(systemId);
 
@@ -64,7 +64,9 @@ class KnowledgeTreeControllerTest {
     void testGetStatus_WhenTreeDoesNotExist() {
         Long systemId = 999L;
 
-        when(systemKnowledgeTreeRepository.findBySystemId(systemId)).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "BUILDING")).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "EMPTY")).thenReturn(Optional.empty());
 
         ApiResponse<KnowledgeTreeStatusResponse> response = controller.getStatus(systemId);
 
@@ -82,7 +84,8 @@ class KnowledgeTreeControllerTest {
         Long systemId = 2L;
         SystemKnowledgeTreeEntity entity = createTestEntity(systemId, 1, 0, "BUILDING");
 
-        when(systemKnowledgeTreeRepository.findBySystemId(systemId)).thenReturn(Optional.of(entity));
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "BUILDING")).thenReturn(Optional.of(entity));
 
         ApiResponse<KnowledgeTreeStatusResponse> response = controller.getStatus(systemId);
 
@@ -99,7 +102,9 @@ class KnowledgeTreeControllerTest {
         Long systemId = 3L;
         SystemKnowledgeTreeEntity entity = createTestEntity(systemId, 0, 0, "EMPTY");
 
-        when(systemKnowledgeTreeRepository.findBySystemId(systemId)).thenReturn(Optional.of(entity));
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "BUILDING")).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "EMPTY")).thenReturn(Optional.of(entity));
 
         ApiResponse<KnowledgeTreeStatusResponse> response = controller.getStatus(systemId);
 

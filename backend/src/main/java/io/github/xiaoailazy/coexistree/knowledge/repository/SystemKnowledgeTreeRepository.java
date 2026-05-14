@@ -13,13 +13,10 @@ import java.util.Optional;
 @Repository
 public interface SystemKnowledgeTreeRepository extends JpaRepository<SystemKnowledgeTreeEntity, Long> {
 
-    Optional<SystemKnowledgeTreeEntity> findBySystemId(Long systemId);
-
-    /**
-     * 带悲观锁的查询，用于并发控制
-     * 防止同时创建系统树的冲突
-     */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT t FROM SystemKnowledgeTreeEntity t WHERE t.systemId = :systemId")
-    Optional<SystemKnowledgeTreeEntity> findBySystemIdWithLock(@Param("systemId") Long systemId);
+    @Query("SELECT t FROM SystemKnowledgeTreeEntity t WHERE t.systemId = :systemId AND t.treeStatus = :treeStatus")
+    Optional<SystemKnowledgeTreeEntity> findBySystemIdAndTreeStatusWithLock(
+            @Param("systemId") Long systemId, @Param("treeStatus") String treeStatus);
+
+    Optional<SystemKnowledgeTreeEntity> findBySystemIdAndTreeStatus(Long systemId, String treeStatus);
 }

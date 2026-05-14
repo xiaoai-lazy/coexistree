@@ -2,6 +2,9 @@ package io.github.xiaoailazy.coexistree.agent.tools;
 
 import com.google.adk.sessions.State;
 import com.google.adk.tools.ToolContext;
+import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
+import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
+import io.github.xiaoailazy.coexistree.document.service.DocumentAccessService;
 import io.github.xiaoailazy.coexistree.document.service.DocumentTreeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,8 +13,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -20,6 +26,12 @@ class ReadNodeTextToolTest {
 
     @Mock
     private DocumentTreeService documentTreeService;
+
+    @Mock
+    private DocumentRepository documentRepository;
+
+    @Mock
+    private DocumentAccessService documentAccessService;
 
     @Mock
     private ToolContext toolContext;
@@ -32,7 +44,7 @@ class ReadNodeTextToolTest {
     @BeforeEach
     void setUp() {
         lenient().when(toolContext.state()).thenReturn(state);
-        tool = new ReadNodeTextTool(documentTreeService);
+        tool = new ReadNodeTextTool(documentTreeService, documentRepository, documentAccessService);
     }
 
     @Test
@@ -58,9 +70,8 @@ class ReadNodeTextToolTest {
 
     @Test
     void shouldSkipUnreadableNodes() {
-        when(toolContext.state()).thenReturn(state);
-        when(state.entrySet()).thenReturn(java.util.Map.<String, Object>of("user:readableDocIds", java.util.List.of(1L)).entrySet());
-        when(state.get("user:readableDocIds")).thenReturn(java.util.List.of(1L));
+        lenient().when(state.entrySet()).thenReturn(java.util.Map.<String, Object>of("user:readableDocIds", java.util.List.of(1L)).entrySet());
+        lenient().when(state.get("user:readableDocIds")).thenReturn(java.util.List.of(1L));
 
         List<ReadNodeTextTool.NodeRef> nodes = List.of(
                 new ReadNodeTextTool.NodeRef(1L, "n1"),
@@ -86,6 +97,23 @@ class ReadNodeTextToolTest {
         );
         String result = tool.readNodeTexts(nodes, toolContext);
         assertTrue(result.contains("无可用原文"));
+    }
+
+    @Test
+    void shouldDenyWhenDocumentAccessServiceRejects() {
+        lenient().when(state.get("user:userId")).thenReturn(1L);
+        lenient().when(state.get("user:userRole")).thenReturn("USER");
+        DocumentEntity doc = new DocumentEntity();
+        doc.setId(2L);
+        doc.setSystemId(1L);
+        doc.setSecurityLevel(5);
+        when(documentRepository.findById(2L)).thenReturn(Optional.of(doc));
+        when(documentAccessService.canReadDocument(eq(doc), any())).thenReturn(false);
+
+        List<ReadNodeTextTool.NodeRef> nodes = List.of(new ReadNodeTextTool.NodeRef(2L, "n1"));
+        String result = tool.readNodeTexts(nodes, toolContext);
+
+        assertTrue(result.contains("无权限访问此节点"));
     }
 
     @Test

@@ -87,9 +87,11 @@ public class AgentConfig {
 
     @Bean
     public ReadNodeTextTool readNodeTextTool(
-            io.github.xiaoailazy.coexistree.document.service.DocumentTreeService documentTreeService
+            io.github.xiaoailazy.coexistree.document.service.DocumentTreeService documentTreeService,
+            io.github.xiaoailazy.coexistree.document.repository.DocumentRepository documentRepository,
+            io.github.xiaoailazy.coexistree.document.service.DocumentAccessService documentAccessService
     ) {
-        return new ReadNodeTextTool(documentTreeService);
+        return new ReadNodeTextTool(documentTreeService, documentRepository, documentAccessService);
     }
 
     @Bean
@@ -134,12 +136,14 @@ public class AgentConfig {
                         A knowledge tree structure has been provided in the context above.
 
                         ## CRITICAL RULE: Always call readNodeTexts FIRST
-                        You MUST call the readNodeTexts tool with relevant node IDs BEFORE generating any answer.
+                        You MUST call the readNodeTexts tool with relevant pointers BEFORE generating any answer.
                         NEVER answer directly using only the tree structure summaries — they are not sufficient for a complete answer.
 
                         ## Workflow
                         1. Examine the knowledge tree structure to identify which nodes are relevant to the user's question
-                        2. Call readNodeTexts with a JSON array: [{"docId": X, "nodeId": "..."}, ...]
+                        2. Call readNodeTexts with a JSON array of pointers from evidenceSources (preferred) or sources:
+                           [{"docId": X, "nodeId": "..."}, ...]
+                           (nodeId is the anchor in document_trees; same field may appear as sourceNodeId in tree JSON.)
                         3. Read the tool response which contains the full text of each node
                         4. Generate a detailed answer based ONLY on the actual node text
                         5. Cite sources: [来源: 节点标题]

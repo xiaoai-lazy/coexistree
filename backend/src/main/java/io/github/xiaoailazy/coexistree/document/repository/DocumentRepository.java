@@ -9,6 +9,8 @@ public interface DocumentRepository extends JpaRepository<DocumentEntity, Long> 
     List<DocumentEntity> findBySystemId(Long systemId);
     long countBySystemId(Long systemId);
 
+    List<DocumentEntity> findAllByChangeRecordIdOrderByIdAsc(Long changeRecordId);
+
     /**
      * 检查系统内是否存在相同内容且未处理失败的文档
      */

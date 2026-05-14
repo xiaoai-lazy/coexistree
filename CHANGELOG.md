@@ -7,6 +7,36 @@
 
 ---
 
+## [3.0.0] - 2026-05-14
+
+本版本将 [v2.2.2](https://github.com/xiaoailazy/coexistree/releases/tag/v2.2.2) 之后的全部提交纳入主版本线，主线为**功能树 / 系统知识树**重构与相关 API、数据模型与并发控制。
+
+### 新增
+
+#### 功能树与变更流
+- 系统变更记录（Change Record）持久化与 `applyChange` API；读节点文本等工具与之一致
+- 功能树 JSON 模型、映射器与更新计划内存模拟器（含 golden 用例）
+- 更新计划校验（例如拒绝 `MOVE_FEATURE`）、变更引用上限、持久化前重算功能安全等级
+- 文档树构建服务按变更记录划定范围；系统树路径使用 PostgreSQL advisory 事务锁
+- `applyChange` 并发：变更输入指纹（fingerprint）
+
+#### 系统知识树与数据库
+- Flyway：`V2__refacter_tree_core.sql`、`V3__system_knowledge_trees_versioned.sql`（含 `system_knowledge_trees` 版本化与部分唯一「活跃树」索引等）
+
+### 重构与修复
+- 活动知识树读取路径与特性证据来源整理
+- 移除系统树服务中遗留的 baseline 变更合并逻辑
+- 数据库索引与 `tree_status` 字段注释澄清
+
+### 文档与工程
+- `AGENTS`、git worktree 与 Bash 子代理说明；执行计划要求 TDD superpower；refacter-tree 任务交接与 handoff 文档
+- 为 worktree 跟踪脚本与 superpowers 计划/规格路径的 chore
+
+### 数据库迁移
+- 自 v2.2.2 起需按序应用 **`V2__refacter_tree_core.sql`**、**`V3__system_knowledge_trees_versioned.sql`**（请确保既有 Flyway 历史已执行完毕后再升级）
+
+---
+
 ## [2.2.1] - 2026-04-10
 
 ### 修复
@@ -140,6 +170,7 @@
 
 ---
 
+[3.0.0]: https://github.com/xiaoailazy/coexistree/compare/v2.2.2...v3.0.0
 [2.2.0]: https://github.com/xiaoailazy/coexistree/compare/v2.1.2...v2.2.0
 [2.1.2]: https://github.com/xiaoailazy/coexistree/compare/v2.1.0...v2.1.2
 [2.0.0]: https://github.com/xiaoailazy/coexistree/compare/v1.0.0...v2.0.0

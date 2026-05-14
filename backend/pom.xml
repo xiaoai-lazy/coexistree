@@ -10,7 +10,7 @@
     </parent>
     <groupId>io.github.xiaoailazy</groupId>
     <artifactId>coexistree</artifactId>
-    <version>1.0.0</version>
+    <version>3.0.0</version>
     <name>CoExistree</name>
     <description>CoExistree - 系统共生知识管理平台</description>
     <url>https://github.com/xiaoailazy/coexistree</url>
@@ -28,7 +28,7 @@
     <scm>
         <connection>scm:git:https://github.com/xiaoailazy/coexistree.git</connection>
         <developerConnection>scm:git:ssh://github.com:xiaoailazy/coexistree.git</developerConnection>
-        <tag>v1.0.0</tag>
+        <tag>v3.0.0</tag>
         <url>https://github.com/xiaoailazy/coexistree</url>
     </scm>
     <properties>

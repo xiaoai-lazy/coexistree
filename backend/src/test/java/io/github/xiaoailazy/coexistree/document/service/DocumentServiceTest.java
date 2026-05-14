@@ -1,5 +1,6 @@
 package io.github.xiaoailazy.coexistree.document.service;
 
+import io.github.xiaoailazy.coexistree.change.repository.SystemChangeRecordRepository;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
 import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
@@ -33,6 +34,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,6 +59,8 @@ class DocumentServiceTest {
     private SystemUserMappingRepository systemUserMappingRepository;
     @Mock
     private JsonUtils jsonUtils;
+    @Mock
+    private SystemChangeRecordRepository changeRecordRepository;
 
     private SecurityUserDetails createOwnerUser() {
         UserEntity user = new UserEntity();
@@ -88,7 +92,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -105,7 +110,12 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("ACTIVE")))
+                .thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("BUILDING")))
+                .thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("EMPTY")))
+                .thenReturn(Optional.empty());
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -138,7 +148,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -164,7 +175,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         DocumentEntity entity = new DocumentEntity();
@@ -193,7 +205,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         when(documentRepository.findById(999L)).thenReturn(java.util.Optional.empty());
@@ -212,7 +225,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         DocumentEntity entity1 = new DocumentEntity();
@@ -252,7 +266,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -269,7 +284,12 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("ACTIVE")))
+                .thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("BUILDING")))
+                .thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("EMPTY")))
+                .thenReturn(Optional.empty());
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -294,7 +314,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -315,7 +336,12 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.of(treeEntity));
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("ACTIVE")))
+                .thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("BUILDING")))
+                .thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("EMPTY")))
+                .thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -340,7 +366,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -361,7 +388,8 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.of(treeEntity));
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("ACTIVE")))
+                .thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -386,7 +414,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         MockMultipartFile file = new MockMultipartFile(
@@ -407,7 +436,10 @@ class DocumentServiceTest {
         mockOwnerPermission(1L, 1L);
 
         when(systemService.getEntity(1L)).thenReturn(system);
-        when(systemKnowledgeTreeRepository.findBySystemIdWithLock(1L)).thenReturn(Optional.of(treeEntity));
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("ACTIVE")))
+                .thenReturn(Optional.empty());
+        when(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(eq(1L), eq("BUILDING")))
+                .thenReturn(Optional.of(treeEntity));
         when(documentRepository.save(any(DocumentEntity.class)))
                 .thenAnswer(invocation -> {
                     DocumentEntity entity = invocation.getArgument(0);
@@ -433,7 +465,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         Long documentId = 1L;
@@ -473,7 +506,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         Long documentId = 999L;
@@ -498,7 +532,8 @@ class DocumentServiceTest {
                 documentAccessService,
                 systemUserMappingRepository,
                 eventPublisher,
-                jsonUtils
+                jsonUtils,
+                changeRecordRepository
         );
 
         Long documentId = 1L;

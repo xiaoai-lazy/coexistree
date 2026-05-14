@@ -52,7 +52,6 @@ backend/.m2/
 
 # Data directory (H2 database, runtime files)
 /data/
-backend/EOF
 
 # Local environment config
 .env

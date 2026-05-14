@@ -3,6 +3,9 @@ package io.github.xiaoailazy.coexistree.knowledge.entity;
 import jakarta.persistence.*;
 
 import java.time.LocalDateTime;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -36,10 +39,17 @@ public class SystemTreeSnapshotEntity {
     private String snapshotName;
 
     /**
-     * 树 JSON 数据
+     * 树 JSON 数据（PostgreSQL jsonb）
      */
-    @Column(name = "tree_json", nullable = false, columnDefinition = "TEXT")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tree_json", nullable = false, columnDefinition = "jsonb")
     private String treeJson;
+
+    @Column(name = "tree_version")
+    private Integer treeVersion;
+
+    @Column(name = "related_change_record_id")
+    private Long relatedChangeRecordId;
 
     /**
      * 触发快照的文档 ID

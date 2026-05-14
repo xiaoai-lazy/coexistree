@@ -9,13 +9,10 @@ import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
 import io.github.xiaoailazy.coexistree.document.entity.DocumentTreeEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentTreeRepository;
-import io.github.xiaoailazy.coexistree.knowledge.service.SystemKnowledgeTreeService;
 import io.github.xiaoailazy.coexistree.indexer.facade.PageIndexMarkdownService;
 import io.github.xiaoailazy.coexistree.indexer.model.DocumentTree;
 import io.github.xiaoailazy.coexistree.indexer.model.PageIndexBuildOptions;
 import io.github.xiaoailazy.coexistree.indexer.tree.TreeNodeCounter;
-import io.github.xiaoailazy.coexistree.system.entity.SystemEntity;
-import io.github.xiaoailazy.coexistree.system.service.SystemService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,8 +26,6 @@ public class DocumentTreeBuildTask {
     private final DocumentRepository documentRepository;
     private final DocumentTreeRepository documentTreeRepository;
     private final DocProcessLogRepository processLogRepository;
-    private final SystemService systemService;
-    private final SystemKnowledgeTreeService systemKnowledgeTreeService;
     private final PageIndexMarkdownService pageIndexMarkdownService;
     private final JsonUtils jsonUtils;
     private final TreeNodeCounter treeNodeCounter;
@@ -39,8 +34,6 @@ public class DocumentTreeBuildTask {
             DocumentRepository documentRepository,
             DocumentTreeRepository documentTreeRepository,
             DocProcessLogRepository processLogRepository,
-            SystemService systemService,
-            SystemKnowledgeTreeService systemKnowledgeTreeService,
             PageIndexMarkdownService pageIndexMarkdownService,
             JsonUtils jsonUtils,
             TreeNodeCounter treeNodeCounter
@@ -48,8 +41,6 @@ public class DocumentTreeBuildTask {
         this.documentRepository = documentRepository;
         this.documentTreeRepository = documentTreeRepository;
         this.processLogRepository = processLogRepository;
-        this.systemService = systemService;
-        this.systemKnowledgeTreeService = systemKnowledgeTreeService;
         this.pageIndexMarkdownService = pageIndexMarkdownService;
         this.jsonUtils = jsonUtils;
         this.treeNodeCounter = treeNodeCounter;
@@ -61,17 +52,37 @@ public class DocumentTreeBuildTask {
 
         DocumentEntity document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DOCUMENT_NOT_FOUND, "Document not found"));
-        SystemEntity system = systemService.getEntity(document.getSystemId());
+
+        if (document.getChangeRecordId() != null) {
+            skipChangeBatchDocumentTreeBuild(document);
+            return;
+        }
 
         markDocumentProcessing(document);
 
         try {
-            buildTree(document, system);
+            buildTree(document);
             log.info("文档树生成成功, documentId={}", documentId);
         } catch (Exception ex) {
             log.error("文档树生成失败, documentId={}", documentId, ex);
-            handleBuildFailure(document, system, ex);
+            handleBuildFailure(document, ex);
         }
+    }
+
+    /**
+     * 变更批次下的文档在设计 §3.4 中仅持久化于 {@code documents}；不在上传异步任务中构建 {@code document_trees} 或合并系统树。
+     */
+    private void skipChangeBatchDocumentTreeBuild(DocumentEntity document) {
+        LocalDateTime now = LocalDateTime.now();
+        document.setParseStatus("SUCCESS");
+        document.setParseError(null);
+        document.setUpdatedAt(now);
+        documentRepository.save(document);
+        log.info(
+                "跳过文档树构建（变更批次文档）, documentId={}, changeRecordId={}",
+                document.getId(),
+                document.getChangeRecordId());
+        logProcess(document.getId(), "TREE_BUILD", "SKIPPED", "变更批次文档不在上传阶段构建文档树");
     }
 
     private void markDocumentProcessing(DocumentEntity document) {
@@ -83,7 +94,7 @@ public class DocumentTreeBuildTask {
         logProcess(document.getId(), "TREE_BUILD", "PROCESSING", "开始生成树结构");
     }
 
-    private void buildTree(DocumentEntity document, SystemEntity system) {
+    private void buildTree(DocumentEntity document) {
         log.debug("开始构建树结构, documentId={}", document.getId());
 
         DocumentTree tree = pageIndexMarkdownService.buildTree(
@@ -117,25 +128,9 @@ public class DocumentTreeBuildTask {
         documentRepository.save(document);
 
         logProcess(document.getId(), "TREE_BUILD", "SUCCESS", "树结构生成成功, 节点数量: " + nodeCount);
-
-        // 13.1.2 根据 document.getDocType() 触发后续任务
-        String docType = document.getDocType();
-        log.info("文档类型={}, docType值={}, 开始触发合并任务", docType, docType);
-
-        if ("BASELINE".equals(docType)) {
-            // 13.1.2.1 BASELINE → 调用 systemKnowledgeTreeService.mergeBaseline()
-            log.info("触发基线合并, documentId={}", document.getId());
-            systemKnowledgeTreeService.mergeBaseline(document.getId(), tree, system);
-        } else if ("CHANGE".equals(docType)) {
-            // 13.1.2.2 CHANGE → 调用 systemKnowledgeTreeService.mergeChange()
-            log.info("触发变更合并, documentId={}", document.getId());
-            systemKnowledgeTreeService.mergeChange(document.getId(), tree, system);
-        } else {
-            log.warn("未知的文档类型: {}, 跳过合并任务", docType);
-        }
     }
 
-    private void handleBuildFailure(DocumentEntity document, SystemEntity system, Exception ex) {
+    private void handleBuildFailure(DocumentEntity document, Exception ex) {
         log.error("树构建失败, documentId={}", document.getId(), ex);
         LocalDateTime now = LocalDateTime.now();
 

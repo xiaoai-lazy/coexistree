@@ -22,6 +22,9 @@ public class TreeSanitizer {
             copy.setLevel(node.getLevel());
             copy.setSummary(node.getSummary());
             copy.setPrefixSummary(node.getPrefixSummary());
+            copy.setNodeType(node.getNodeType());
+            copy.setCurrentState(node.getCurrentState());
+            copy.setEvidenceSources(node.getEvidenceSources());
             copy.setSources(node.getSources());
             copy.setNodes(removeText(node.getNodes()));
             result.add(copy);

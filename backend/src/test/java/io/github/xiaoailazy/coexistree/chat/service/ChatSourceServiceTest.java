@@ -6,6 +6,7 @@ import io.github.xiaoailazy.coexistree.document.entity.DocumentEntity;
 import io.github.xiaoailazy.coexistree.document.repository.DocumentRepository;
 import io.github.xiaoailazy.coexistree.document.service.DocumentAccessService;
 import io.github.xiaoailazy.coexistree.document.service.DocumentTreeService;
+import io.github.xiaoailazy.coexistree.featuretree.model.EvidenceSource;
 import io.github.xiaoailazy.coexistree.indexer.model.NodeSource;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeNode;
 import io.github.xiaoailazy.coexistree.indexer.model.TreeSearchResult;
@@ -117,6 +118,32 @@ class ChatSourceServiceTest {
         when(documentTreeService.getNodeText(2L, "refund-doc-node")).thenReturn("退款内容");
 
         assertThat(service.retrieveSources(99L, "退款", userDetails)).hasSize(1);
+    }
+
+    @Test
+    void shouldUseEvidenceSourcesWhenPresent() {
+        TreeNode feature = node("f1", "登录功能", "摘要", null, 2, null);
+        EvidenceSource es = new EvidenceSource();
+        es.setDocId(2L);
+        es.setNodeId("anchor-1");
+        feature.setEvidenceSources(List.of(es));
+        List<TreeNode> structure = List.of(feature);
+        SystemKnowledgeTree tree = new SystemKnowledgeTree();
+        tree.setStructure(structure);
+        DocumentEntity doc = document(2L, "需求.md", 2);
+
+        when(systemKnowledgeTreeService.getActiveTree(99L)).thenReturn(tree);
+        when(treeSearchService.search(anyList(), eq("登录"), isNull()))
+                .thenReturn(new TreeSearchResult(null, null, List.of("f1")));
+        when(documentRepository.findById(2L)).thenReturn(Optional.of(doc));
+        when(documentAccessService.canReadDocument(doc, userDetails)).thenReturn(true);
+        when(documentTreeService.getNodeText(2L, "anchor-1")).thenReturn("登录实现细节");
+
+        List<SseEvent.SourceDto> sources = service.retrieveSources(99L, "登录", userDetails);
+
+        assertThat(sources).hasSize(1);
+        assertThat(sources.get(0).nodeId()).isEqualTo("anchor-1");
+        assertThat(sources.get(0).snippet()).contains("登录实现");
     }
 
     @Test

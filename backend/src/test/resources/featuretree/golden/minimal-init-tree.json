@@ -1,0 +1,18 @@
+{
+  "systemSummary": "最小合法初始树样例",
+  "tree": {
+    "nodeId": "system-root",
+    "nodeType": "SYSTEM_ROOT",
+    "title": "示例系统",
+    "summary": "根节点说明",
+    "nodes": [
+      {
+        "nodeId": "feature-root",
+        "nodeType": "FEATURE_ROOT",
+        "title": "功能",
+        "summary": "功能总览",
+        "nodes": []
+      }
+    ]
+  }
+}

@@ -131,8 +131,8 @@ public class TreeContextLoader {
         return """
                 You are working with the knowledge tree of system "%s" (code: %s, version: %d).
 
-                The tree structure below contains nodes with: nodeId, title, summary, prefixSummary, level, and sources (docId + sourceNodeId).
-                The text field has been removed to save context. Use the read_node_text tool with the docId from sources to read the actual content.
+                The tree structure below contains nodes with: nodeId, title, summary, nodeType, currentState, evidenceSources (docId + nodeId for document_trees), and legacy sources.
+                The text field has been removed to save context. Use the read_node_text tool with docId and nodeId from evidenceSources (or sources) to read the actual content.
 
                 ## Knowledge Tree Structure
                 %s

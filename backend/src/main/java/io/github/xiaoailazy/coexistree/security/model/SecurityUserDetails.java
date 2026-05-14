@@ -25,6 +25,20 @@ public class SecurityUserDetails implements UserDetails {
         this.authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
     }
 
+    /**
+     * 用于 Agent 会话等场景：仅依赖 userId + role 做文档级权限判断（与 {@link UserEntity} 完整字段解耦）。
+     */
+    public static SecurityUserDetails forAccessCheck(Long userId, UserRole role) {
+        UserEntity user = new UserEntity();
+        user.setId(userId);
+        user.setUsername("_session_");
+        user.setPasswordHash("-");
+        user.setDisplayName("_");
+        user.setRole(role != null ? role : UserRole.USER);
+        user.setEnabled(true);
+        return new SecurityUserDetails(user);
+    }
+
     public Long getId() { return id; }
     public UserRole getRole() { return role; }
 

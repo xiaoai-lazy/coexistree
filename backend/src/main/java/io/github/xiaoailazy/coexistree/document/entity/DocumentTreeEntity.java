@@ -15,6 +15,9 @@ public class DocumentTreeEntity {
     @Column(name = "document_id", nullable = false, unique = true)
     private Long documentId;
 
+    @Column(name = "system_id")
+    private Long systemId;
+
     @Column(name = "tree_json", nullable = false, columnDefinition = "TEXT")
     private String treeJson;
 
@@ -44,6 +47,14 @@ public class DocumentTreeEntity {
 
     public void setDocumentId(Long documentId) {
         this.documentId = documentId;
+    }
+
+    public Long getSystemId() {
+        return systemId;
+    }
+
+    public void setSystemId(Long systemId) {
+        this.systemId = systemId;
     }
 
     public String getTreeJson() {

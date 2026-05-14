@@ -33,6 +33,9 @@ public enum ErrorCode {
     MESSAGE_LIMIT_EXCEEDED,
     CONCURRENT_UPDATE_CONFLICT,
 
+    /** applyChange / 上传等前置条件不满足（如变更批次已应用）。 */
+    APPLY_PRECONDITION_FAILED,
+
     QA_FAILED,
     QUESTION_EMPTY,
     QUESTION_TOO_LONG,
@@ -42,6 +45,23 @@ public enum ErrorCode {
 
     JSON_SERIALIZE_ERROR,
     JSON_PARSE_ERROR,
+
+    /** 更新计划含 v1 不支持的算子（如 {@code MOVE_FEATURE}）。 */
+    UPDATE_PLAN_OPERATION_NOT_SUPPORTED,
+    /** 更新计划操作依赖未满足（如先于目标模块创建子功能）。 */
+    UPDATE_PLAN_DEPENDENCY_FAILED,
+    /** 更新计划操作顺序非法。 */
+    UPDATE_PLAN_ORDER_INVALID,
+    /** applyChange 时基线树版本与计划不一致。 */
+    BASE_TREE_VERSION_MISMATCH,
+    /** 计划或树中引用的文档非法。 */
+    DOCUMENT_REFERENCE_INVALID,
+    /** 系统树计划 LLM 调用在退避后仍失败。 */
+    LLM_RETRIES_EXHAUSTED,
+    /** 应用变更前文档输入指纹已变化。 */
+    CHANGE_INPUT_CHANGED,
+    /** 通用不支持的操作（可与更新计划拒绝策略对齐）。 */
+    OPERATION_NOT_SUPPORTED,
 
     PERMISSION_DENIED,
 

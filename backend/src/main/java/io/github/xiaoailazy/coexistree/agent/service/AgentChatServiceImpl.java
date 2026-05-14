@@ -170,6 +170,9 @@ public class AgentChatServiceImpl implements AgentChatService {
             ConcurrentHashMap<String, Object> sessionState = new ConcurrentHashMap<>();
             sessionState.put("temp:runId", runCtx.runId());
             sessionState.put("user:userId", userDetails.getId());
+            if (userDetails.getRole() != null) {
+                sessionState.put("user:userRole", userDetails.getRole().name());
+            }
             if (systemId != null) {
                 sessionState.put("user:systemId", systemId);
             }

@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Optional;
+
 @RestController
 @RequestMapping("/api/v1/systems/{systemId}/knowledge-tree")
 public class KnowledgeTreeController {
@@ -21,11 +23,17 @@ public class KnowledgeTreeController {
 
     @GetMapping("/status")
     public ApiResponse<KnowledgeTreeStatusResponse> getStatus(@PathVariable Long systemId) {
-        SystemKnowledgeTreeEntity entity = systemKnowledgeTreeRepository.findBySystemId(systemId)
-                .orElse(null);
+        Optional<SystemKnowledgeTreeEntity> row = systemKnowledgeTreeRepository
+                .findBySystemIdAndTreeStatus(systemId, "ACTIVE");
+        if (row.isEmpty()) {
+            row = systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "BUILDING");
+        }
+        if (row.isEmpty()) {
+            row = systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(systemId, "EMPTY");
+        }
 
-        if (entity == null) {
-            // Return default empty status when system tree doesn't exist
+        if (row.isEmpty()) {
+            // 无 system_knowledge_trees 行
             return ApiResponse.success(new KnowledgeTreeStatusResponse(
                     0,
                     0,
@@ -34,6 +42,7 @@ public class KnowledgeTreeController {
             ));
         }
 
+        SystemKnowledgeTreeEntity entity = row.get();
         KnowledgeTreeStatusResponse response = new KnowledgeTreeStatusResponse(
                 entity.getTreeVersion(),
                 entity.getNodeCount(),

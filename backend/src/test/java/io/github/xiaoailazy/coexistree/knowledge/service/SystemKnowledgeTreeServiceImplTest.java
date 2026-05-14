@@ -1,16 +1,10 @@
 package io.github.xiaoailazy.coexistree.knowledge.service;
 
-import io.github.xiaoailazy.coexistree.indexer.llm.LlmClient;
-import io.github.xiaoailazy.coexistree.indexer.llm.PromptTemplateService;
-import io.github.xiaoailazy.coexistree.indexer.llm.RetryableLlmService;
-import io.github.xiaoailazy.coexistree.indexer.summary.NodeSummaryService;
-import io.github.xiaoailazy.coexistree.indexer.tree.TreeSimplifier;
 import io.github.xiaoailazy.coexistree.knowledge.entity.SystemKnowledgeTreeEntity;
 import io.github.xiaoailazy.coexistree.knowledge.model.SystemKnowledgeTree;
 import io.github.xiaoailazy.coexistree.knowledge.repository.SystemKnowledgeTreeRepository;
 import io.github.xiaoailazy.coexistree.shared.enums.ErrorCode;
 import io.github.xiaoailazy.coexistree.shared.exception.BusinessException;
-import io.github.xiaoailazy.coexistree.shared.repository.DocProcessLogRepository;
 import io.github.xiaoailazy.coexistree.shared.util.JsonUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,8 +26,6 @@ import static org.mockito.Mockito.when;
  * SystemKnowledgeTreeServiceImpl 单元测试
  *
  * 本测试专注于验证 getActiveTree 核心查询功能。
- * mergeBaseline 和 mergeChange 方法涉及复杂的 LLM 调用链，
- * 这些更适合用集成测试覆盖。
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SystemKnowledgeTreeServiceImpl 测试")
@@ -42,32 +34,13 @@ class SystemKnowledgeTreeServiceImplTest {
     @Mock
     private SystemKnowledgeTreeRepository repository;
     @Mock
-    private PromptTemplateService promptTemplateService;
-    @Mock
-    private LlmClient llmClient;
-    @Mock
-    private RetryableLlmService retryableLlmService;
-    @Mock
     private JsonUtils jsonUtils;
-    @Mock
-    private DocProcessLogRepository processLogRepository;
-    @Mock
-    private NodeSummaryService nodeSummaryService;
-    @Mock
-    private SnapshotService snapshotService;
-    @Mock
-    private TreeSimplifier treeSimplifier;
 
     private SystemKnowledgeTreeServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new SystemKnowledgeTreeServiceImpl(
-                repository, promptTemplateService,
-                llmClient, retryableLlmService, jsonUtils,
-                processLogRepository, nodeSummaryService, snapshotService,
-                treeSimplifier
-        );
+        service = new SystemKnowledgeTreeServiceImpl(repository, jsonUtils);
     }
 
     @Nested
@@ -81,7 +54,7 @@ class SystemKnowledgeTreeServiceImplTest {
             SystemKnowledgeTreeEntity entity = createActiveTreeEntity(systemId);
             SystemKnowledgeTree expectedTree = createTestTree();
 
-            when(repository.findBySystemId(systemId)).thenReturn(Optional.of(entity));
+            when(repository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.of(entity));
             when(jsonUtils.fromJson(entity.getTreeJson(), SystemKnowledgeTree.class)).thenReturn(expectedTree);
 
             SystemKnowledgeTree result = service.getActiveTree(systemId);
@@ -95,7 +68,7 @@ class SystemKnowledgeTreeServiceImplTest {
         @DisplayName("知识树不存在时抛出异常")
         void shouldThrowExceptionWhenTreeNotFound() {
             Long systemId = 1L;
-            when(repository.findBySystemId(systemId)).thenReturn(Optional.empty());
+            when(repository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service.getActiveTree(systemId))
                     .isInstanceOf(BusinessException.class)
@@ -110,7 +83,7 @@ class SystemKnowledgeTreeServiceImplTest {
             SystemKnowledgeTreeEntity entity = createActiveTreeEntity(systemId);
             entity.setTreeStatus("BUILDING");
 
-            when(repository.findBySystemId(systemId)).thenReturn(Optional.of(entity));
+            when(repository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.of(entity));
 
             assertThatThrownBy(() -> service.getActiveTree(systemId))
                     .isInstanceOf(BusinessException.class)
@@ -125,7 +98,7 @@ class SystemKnowledgeTreeServiceImplTest {
             SystemKnowledgeTreeEntity entity = createActiveTreeEntity(systemId);
             entity.setTreeStatus("EMPTY");
 
-            when(repository.findBySystemId(systemId)).thenReturn(Optional.of(entity));
+            when(repository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.of(entity));
 
             assertThatThrownBy(() -> service.getActiveTree(systemId))
                     .isInstanceOf(BusinessException.class)
@@ -139,7 +112,7 @@ class SystemKnowledgeTreeServiceImplTest {
             SystemKnowledgeTreeEntity entity = createActiveTreeEntity(systemId);
             entity.setTreeStatus(null);
 
-            when(repository.findBySystemId(systemId)).thenReturn(Optional.of(entity));
+            when(repository.findBySystemIdAndTreeStatus(systemId, "ACTIVE")).thenReturn(Optional.of(entity));
 
             assertThatThrownBy(() -> service.getActiveTree(systemId))
                     .isInstanceOf(BusinessException.class)

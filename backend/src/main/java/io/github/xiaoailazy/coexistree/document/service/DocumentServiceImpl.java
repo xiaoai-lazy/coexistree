@@ -1,5 +1,8 @@
 package io.github.xiaoailazy.coexistree.document.service;
 
+import io.github.xiaoailazy.coexistree.change.entity.SystemChangeRecordEntity;
+import io.github.xiaoailazy.coexistree.change.repository.SystemChangeRecordRepository;
+import io.github.xiaoailazy.coexistree.document.dto.ChangeDocumentUploadCommand;
 import io.github.xiaoailazy.coexistree.document.dto.DocumentContentResponse;
 import io.github.xiaoailazy.coexistree.document.dto.DocumentResponse;
 import io.github.xiaoailazy.coexistree.document.dto.NodeAnchor;
@@ -49,6 +52,7 @@ public class DocumentServiceImpl implements DocumentService {
     private final SystemUserMappingRepository systemUserMappingRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final JsonUtils jsonUtils;
+    private final SystemChangeRecordRepository changeRecordRepository;
 
     public DocumentServiceImpl(
             DocumentRepository documentRepository,
@@ -58,7 +62,8 @@ public class DocumentServiceImpl implements DocumentService {
             DocumentAccessService documentAccessService,
             SystemUserMappingRepository systemUserMappingRepository,
             ApplicationEventPublisher eventPublisher,
-            JsonUtils jsonUtils
+            JsonUtils jsonUtils,
+            SystemChangeRecordRepository changeRecordRepository
     ) {
         this.documentRepository = documentRepository;
         this.documentTreeRepository = documentTreeRepository;
@@ -68,6 +73,7 @@ public class DocumentServiceImpl implements DocumentService {
         this.systemUserMappingRepository = systemUserMappingRepository;
         this.eventPublisher = eventPublisher;
         this.jsonUtils = jsonUtils;
+        this.changeRecordRepository = changeRecordRepository;
     }
 
     @Override
@@ -98,9 +104,8 @@ public class DocumentServiceImpl implements DocumentService {
                 "该文档已存在，请勿重复上传");
         }
 
-        // 使用悲观锁查询系统树状态，防止并发创建冲突
-        Optional<SystemKnowledgeTreeEntity> treeOpt =
-            systemKnowledgeTreeRepository.findBySystemIdWithLock(systemId);
+        // 每系统单行：按 ACTIVE → BUILDING → EMPTY 依次加锁，等价于旧版对「当前行」加锁后读取 tree_status
+        Optional<SystemKnowledgeTreeEntity> treeOpt = resolveKnowledgeTreeRowWithLock(systemId);
         String docType = determineDocType(treeOpt);
         log.debug("自动判断文档类型, systemId={}, docType={}", systemId, docType);
 
@@ -132,6 +137,124 @@ public class DocumentServiceImpl implements DocumentService {
             log.error("文档保存冲突, systemId={}, fileName={}", systemId, file.getOriginalFilename(), e);
             throw new BusinessException(ErrorCode.DUPLICATE_DOCUMENT,
                 "文档正在处理中，请勿重复提交");
+        }
+    }
+
+    @Override
+    @Transactional
+    public DocumentResponse uploadForChange(
+            Long systemId,
+            Long changeRecordId,
+            ChangeDocumentUploadCommand command,
+            SecurityUserDetails userDetails) {
+        log.info(
+                "变更批次上传文档, systemId={}, changeRecordId={}, fileName={}",
+                systemId,
+                changeRecordId,
+                command.originalFileName());
+
+        Integer securityLevel = command.securityLevel() != null ? command.securityLevel() : 1;
+        checkUploadPermission(systemId, userDetails, securityLevel);
+        validateChangeUpload(command);
+
+        SystemChangeRecordEntity locked =
+                changeRecordRepository
+                        .findByIdForUpdate(changeRecordId)
+                        .orElseThrow(
+                                () ->
+                                        new BusinessException(
+                                                ErrorCode.APPLY_PRECONDITION_FAILED,
+                                                "变更记录不存在"));
+
+        if (!locked.getSystemId().equals(systemId)) {
+            throw new BusinessException(
+                    ErrorCode.APPLY_PRECONDITION_FAILED, "变更记录不属于当前系统");
+        }
+        if (locked.getTreeVersionAfter() != null) {
+            throw new BusinessException(
+                    ErrorCode.APPLY_PRECONDITION_FAILED, "变更批次已应用，无法再上传文档");
+        }
+
+        String markdown = command.markdownContent();
+        String contentHash = calculateContentHashFromUtf8(markdown);
+        if (contentHash != null && isDuplicateDocument(systemId, contentHash)) {
+            log.warn(
+                    "检测到重复上传, systemId={}, changeRecordId={}, fileName={}",
+                    systemId,
+                    changeRecordId,
+                    command.originalFileName());
+            throw new BusinessException(ErrorCode.DUPLICATE_DOCUMENT, "该文档已存在，请勿重复上传");
+        }
+
+        DocumentEntity entity = new DocumentEntity();
+        entity.setSystemId(systemId);
+        entity.setChangeRecordId(changeRecordId);
+        entity.setDocName(command.originalFileName());
+        entity.setOriginalFileName(command.originalFileName());
+        entity.setContentType("markdown");
+        entity.setParseStatus("PENDING");
+        entity.setDocType(legacyDocTypeForDocContentType(command.docContentType()));
+        entity.setDocContentType(command.docContentType());
+        entity.setMarkdownContent(markdown);
+        entity.setFileContent(markdown);
+        entity.setContentHash(contentHash);
+        entity.setTreeBuildStatus("PENDING");
+        entity.setMergeStatus("PENDING");
+        entity.setSecurityLevel(securityLevel);
+        entity.setUploadedBy(userDetails.getId());
+        entity.setCreatedAt(LocalDateTime.now());
+        entity.setUpdatedAt(LocalDateTime.now());
+
+        try {
+            DocumentEntity saved = documentRepository.save(entity);
+            log.info(
+                    "变更批次文档保存成功, documentId={}, changeRecordId={}",
+                    saved.getId(),
+                    changeRecordId);
+            return toResponse(saved);
+        } catch (DataIntegrityViolationException e) {
+            log.error(
+                    "文档保存冲突, systemId={}, changeRecordId={}, fileName={}",
+                    systemId,
+                    changeRecordId,
+                    command.originalFileName(),
+                    e);
+            throw new BusinessException(ErrorCode.DUPLICATE_DOCUMENT, "文档正在处理中，请勿重复提交");
+        }
+    }
+
+    private static String legacyDocTypeForDocContentType(String docContentType) {
+        if ("REQUIREMENT".equals(docContentType)) {
+            return "BASELINE";
+        }
+        if ("DESIGN".equals(docContentType) || "TASK_LIST".equals(docContentType)) {
+            return "CHANGE";
+        }
+        return "BASELINE";
+    }
+
+    private void validateChangeUpload(ChangeDocumentUploadCommand command) {
+        String name = command.originalFileName();
+        if (name == null || (!name.endsWith(".md") && !name.endsWith(".markdown"))) {
+            throw new BusinessException(ErrorCode.INVALID_FILE_TYPE, "Only markdown files are supported");
+        }
+        String body = command.markdownContent();
+        if (body == null || body.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_FILE_CONTENT, "Uploaded content is empty");
+        }
+        if (body.length() > MAX_FILE_SIZE) {
+            throw new BusinessException(ErrorCode.FILE_SIZE_EXCEEDED, "File size exceeds 10MB limit");
+        }
+    }
+
+    private String calculateContentHashFromUtf8(String utf8) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("MD5");
+            byte[] hash = md.digest(utf8.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(hash);
+        } catch (NoSuchAlgorithmException e) {
+            log.warn("计算内容哈希失败", e);
+            return null;
         }
     }
 
@@ -176,6 +299,23 @@ public class DocumentServiceImpl implements DocumentService {
         }
 
         return "CHANGE";
+    }
+
+    /**
+     * 与 {@link #determineDocType} 配套：在单行模型下锁定当前系统树行（状态为三者之一）。
+     */
+    private Optional<SystemKnowledgeTreeEntity> resolveKnowledgeTreeRowWithLock(Long systemId) {
+        Optional<SystemKnowledgeTreeEntity> active =
+                systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(systemId, "ACTIVE");
+        if (active.isPresent()) {
+            return active;
+        }
+        Optional<SystemKnowledgeTreeEntity> building =
+                systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(systemId, "BUILDING");
+        if (building.isPresent()) {
+            return building;
+        }
+        return systemKnowledgeTreeRepository.findBySystemIdAndTreeStatusWithLock(systemId, "EMPTY");
     }
 
     @Override

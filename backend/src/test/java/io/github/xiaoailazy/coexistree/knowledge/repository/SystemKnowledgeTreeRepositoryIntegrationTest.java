@@ -52,7 +52,7 @@ class SystemKnowledgeTreeRepositoryIntegrationTest {
         systemKnowledgeTreeRepository.save(tree);
 
         // When
-        Optional<SystemKnowledgeTreeEntity> found = systemKnowledgeTreeRepository.findBySystemId(1L);
+        Optional<SystemKnowledgeTreeEntity> found = systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(1L, "ACTIVE");
 
         // Then
         assertThat(found).isPresent();
@@ -62,7 +62,7 @@ class SystemKnowledgeTreeRepositoryIntegrationTest {
     @Test
     void shouldReturnEmptyWhenSystemIdNotFound() {
         // When
-        Optional<SystemKnowledgeTreeEntity> found = systemKnowledgeTreeRepository.findBySystemId(999L);
+        Optional<SystemKnowledgeTreeEntity> found = systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(999L, "ACTIVE");
 
         // Then
         assertThat(found).isEmpty();
@@ -80,7 +80,8 @@ class SystemKnowledgeTreeRepositoryIntegrationTest {
         systemKnowledgeTreeRepository.save(saved);
 
         // Then
-        SystemKnowledgeTreeEntity updated = systemKnowledgeTreeRepository.findBySystemId(1L).orElseThrow();
+        SystemKnowledgeTreeEntity updated =
+                systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(1L, "ACTIVE").orElseThrow();
         assertThat(updated.getTreeVersion()).isEqualTo(2);
         assertThat(updated.getNodeCount()).isEqualTo(20);
     }
@@ -96,7 +97,8 @@ class SystemKnowledgeTreeRepositoryIntegrationTest {
         systemKnowledgeTreeRepository.save(tree);
 
         // Then
-        SystemKnowledgeTreeEntity updated = systemKnowledgeTreeRepository.findBySystemId(1L).orElseThrow();
+        SystemKnowledgeTreeEntity updated =
+                systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(1L, "ACTIVE").orElseThrow();
         assertThat(updated.getTreeStatus()).isEqualTo("ACTIVE");
     }
 
@@ -110,6 +112,6 @@ class SystemKnowledgeTreeRepositoryIntegrationTest {
         systemKnowledgeTreeRepository.deleteById(saved.getId());
 
         // Then
-        assertThat(systemKnowledgeTreeRepository.findBySystemId(1L)).isEmpty();
+        assertThat(systemKnowledgeTreeRepository.findBySystemIdAndTreeStatus(1L, "ACTIVE")).isEmpty();
     }
 }
